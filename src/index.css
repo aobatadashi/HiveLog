@@ -459,6 +459,135 @@ textarea {
   padding: var(--space-sm) 0;
 }
 
+/* ── Login page ─────────────────────────────────────────────── */
+.login-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.login-logo {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: var(--space-sm);
+}
+
+.login-header h1 {
+  font-size: 40px;
+  margin-bottom: var(--space-xs);
+}
+
+.login-subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-lg);
+}
+
+.login-form {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.login-form h2 {
+  margin-bottom: var(--space-lg);
+}
+
+.login-form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.login-form label:first-of-type {
+  margin-top: 0;
+}
+
+.login-form input[type="email"],
+.login-form input[type="password"] {
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--font-body);
+  padding: var(--space-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  min-height: var(--touch-preferred);
+  -webkit-appearance: none;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.btn-full {
+  width: 100%;
+  margin-top: var(--space-lg);
+}
+
+.login-links {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+/* Borderless text-style button for secondary nav */
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: var(--font-body);
+  font-weight: 600;
+  padding: var(--space-sm) 0;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-btn:active {
+  opacity: 0.7;
+  transform: none;
+}
+
+.login-hint {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body);
+  margin-bottom: var(--space-lg);
+}
+
+.login-success {
+  text-align: center;
+}
+
+.success-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-md);
+}
+
+.login-success h2 {
+  margin-bottom: var(--space-md);
+}
+
+.login-success p {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xl);
+  line-height: 1.6;
+}
+
 /* PIN input group */
 .pin-input-group {
   display: flex;

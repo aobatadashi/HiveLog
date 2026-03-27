@@ -27,15 +27,16 @@ Complete this guide **before** running the app. Takes ~20 minutes.
 2. Open `supabase_schema.sql` from this repo and paste the **entire contents**
 3. Click **Run** — you should see success messages for all 3 tables + RLS policies
 
-### 1d. Enable Phone Auth
-1. In Supabase → **Authentication** → **Providers**
-2. Find **Phone** and click to expand it
-3. Toggle **Enable Phone provider** → ON
-4. Leave the SMS provider set to **Twilio** (you'll fill credentials in Step 2)
-5. Under **Auth Settings** (Authentication → Settings):
-   - **Disable "Confirm email"** (we don't use email)
-   - Ensure **"Enable phone signup"** is ON
-   - Set **OTP expiry** to `600` seconds (10 min) — good for field use
+### 1d. Configure Email Auth (current v1 setup — no Twilio needed yet)
+> Phone auth comes later. For now the app uses email + password — much faster to get started.
+
+1. In Supabase → **Authentication** → **Settings** (left sidebar)
+2. Under **User Signups**:
+   - **Disable "Enable email confirmations"** — toggle it OFF
+     *(This lets new accounts log in immediately without clicking a verification email)*
+3. That's it — Email + Password is enabled by default in every Supabase project.
+
+> **Switching to phone later?** See `PHONE_AUTH_TODO.md` in the project root for the full migration checklist.
 
 ---
 

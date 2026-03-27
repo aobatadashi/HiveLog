@@ -1,440 +1,262 @@
+/**
+ * Login.jsx — Email + Password auth (v1 temporary)
+ *
+ * TODO — PHONE AUTH MIGRATION:
+ * When ready to switch to phone + SMS OTP + 4-digit PIN (the final spec),
+ * see PHONE_AUTH_TODO.md in the project root for the full migration guide.
+ * The useAuth hook and supabaseClient need no changes — only this file.
+ */
+
 import { useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 
 const STEPS = {
-  PHONE: 'phone',
-  OTP: 'otp',
-  SET_PIN: 'set_pin',
-  LOGIN_PIN: 'login_pin',
-  FORGOT_OTP: 'forgot_otp',
-  RESET_PIN: 'reset_pin',
+  SIGN_IN: 'sign_in',
+  SIGN_UP: 'sign_up',
+  FORGOT: 'forgot',
+  FORGOT_SENT: 'forgot_sent',
 };
 
 export default function Login() {
-  const [step, setStep] = useState(STEPS.PHONE);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [pin, setPin] = useState('');
-  const [pinConfirm, setPinConfirm] = useState('');
+  const [step, setStep] = useState(STEPS.SIGN_IN);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isNewUser, setIsNewUser] = useState(false);
 
-  function clearError() {
-    setError('');
-  }
+  function clearError() { setError(''); }
 
-  function formatPhone(value) {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length <= 1) return '+' + digits;
-    return '+' + digits;
-  }
-
-  async function handleSendOtp() {
-    clearError();
-    if (phone.length < 10) {
-      setError('Enter a valid phone number with country code');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({ phone });
-      if (otpError) {
-        setError(otpError.message);
-      } else {
-        setIsNewUser(true);
-        setStep(STEPS.OTP);
-      }
-    } catch {
-      setError('Failed to send verification code');
-    }
-    setLoading(false);
-  }
-
-  async function handleLoginWithPin() {
-    clearError();
-    if (pin.length !== 4) {
-      setError('PIN must be 4 digits');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        phone,
-        password: pin,
-      });
-      if (loginError) {
-        if (loginError.message.includes('Invalid login credentials')) {
-          setError('Wrong PIN. Tap "Forgot PIN" to reset.');
-        } else {
-          setError(loginError.message);
-        }
-      }
-    } catch {
-      setError('Login failed');
-    }
-    setLoading(false);
-  }
-
-  async function handleVerifyOtp() {
-    clearError();
-    if (otp.length !== 6) {
-      setError('Enter the 6-digit code');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        phone,
-        token: otp,
-        type: 'sms',
-      });
-      if (verifyError) {
-        setError(verifyError.message);
-      } else {
-        setStep(STEPS.SET_PIN);
-      }
-    } catch {
-      setError('Verification failed');
-    }
-    setLoading(false);
-  }
-
-  async function handleSetPin() {
-    clearError();
-    if (pin.length !== 4) {
-      setError('PIN must be 4 digits');
-      return;
-    }
-    if (pin !== pinConfirm) {
-      setError('PINs do not match');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: pin,
-      });
-      if (updateError) {
-        setError(updateError.message);
-      }
-      // Auth state change will redirect automatically
-    } catch {
-      setError('Failed to set PIN');
-    }
-    setLoading(false);
-  }
-
-  async function handleForgotPin() {
-    clearError();
-    setLoading(true);
-    try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({ phone });
-      if (otpError) {
-        setError(otpError.message);
-      } else {
-        setOtp('');
-        setPin('');
-        setPinConfirm('');
-        setStep(STEPS.FORGOT_OTP);
-      }
-    } catch {
-      setError('Failed to send verification code');
-    }
-    setLoading(false);
-  }
-
-  async function handleForgotVerify() {
-    clearError();
-    if (otp.length !== 6) {
-      setError('Enter the 6-digit code');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        phone,
-        token: otp,
-        type: 'sms',
-      });
-      if (verifyError) {
-        setError(verifyError.message);
-      } else {
-        setStep(STEPS.RESET_PIN);
-      }
-    } catch {
-      setError('Verification failed');
-    }
-    setLoading(false);
-  }
-
-  async function handleResetPin() {
-    clearError();
-    if (pin.length !== 4) {
-      setError('PIN must be 4 digits');
-      return;
-    }
-    if (pin !== pinConfirm) {
-      setError('PINs do not match');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: pin,
-      });
-      if (updateError) {
-        setError(updateError.message);
-      }
-    } catch {
-      setError('Failed to reset PIN');
-    }
-    setLoading(false);
-  }
-
-  function handlePhoneSubmit(e) {
+  // ── Sign In ──────────────────────────────────────────────────
+  async function handleSignIn(e) {
     e.preventDefault();
-    if (isNewUser) {
-      handleSendOtp();
+    clearError();
+    if (!email || !password) { setError('Enter your email and password'); return; }
+    setLoading(true);
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) setError(err.message === 'Invalid login credentials'
+      ? 'Wrong email or password'
+      : err.message);
+    setLoading(false);
+  }
+
+  // ── Sign Up ──────────────────────────────────────────────────
+  async function handleSignUp(e) {
+    e.preventDefault();
+    clearError();
+    if (!email || !password) { setError('Enter your email and password'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (password !== passwordConfirm) { setError('Passwords do not match'); return; }
+    setLoading(true);
+    const { error: err } = await supabase.auth.signUp({ email, password });
+    if (err) {
+      setError(err.message);
     } else {
-      handleLoginWithPin();
+      // Supabase may auto-confirm or send a confirmation email depending on project settings.
+      // If email confirmation is disabled in Supabase → Auth → Settings, the user is
+      // logged in immediately. Otherwise show a helpful message.
+      setError('');
     }
+    setLoading(false);
+  }
+
+  // ── Forgot Password ──────────────────────────────────────────
+  async function handleForgot(e) {
+    e.preventDefault();
+    clearError();
+    if (!email) { setError('Enter your email address'); return; }
+    setLoading(true);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (err) {
+      setError(err.message);
+    } else {
+      setStep(STEPS.FORGOT_SENT);
+    }
+    setLoading(false);
   }
 
   return (
-    <div className="page" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '100vh' }}>
-      <div style={{ textAlign: 'center', marginBottom: 'var(--space-xl)' }}>
-        <h1 style={{ fontSize: '40px', marginBottom: 'var(--space-sm)' }}>🐝 HiveLog</h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-lg)' }}>
-          Hive event logging for beekeepers
-        </p>
+    <div className="page login-page">
+      {/* Header */}
+      <div className="login-header">
+        <div className="login-logo">🐝</div>
+        <h1>HiveLog</h1>
+        <p className="login-subtitle">Hive event logging for beekeepers</p>
       </div>
 
-      {/* PHONE ENTRY */}
-      {step === STEPS.PHONE && (
-        <div>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            Phone Number
-          </label>
-          <input
-            type="tel"
-            placeholder="+1234567890"
-            value={phone}
-            onChange={(e) => setPhone(formatPhone(e.target.value))}
-            autoComplete="tel"
-          />
-          <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-lg)' }}>
-            <button
-              className="btn btn-primary"
-              style={{ flex: 1 }}
-              onClick={handleSendOtp}
-              disabled={loading}
-            >
-              {loading ? 'Sending...' : 'Send Code'}
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ flex: 1 }}
-              onClick={() => {
-                clearError();
-                setIsNewUser(false);
-                setStep(STEPS.LOGIN_PIN);
-              }}
-            >
-              I have a PIN
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ── Sign In ── */}
+      {step === STEPS.SIGN_IN && (
+        <form className="login-form" onSubmit={handleSignIn} noValidate>
+          <h2>Sign In</h2>
 
-      {/* LOGIN WITH PIN */}
-      {step === STEPS.LOGIN_PIN && (
-        <form onSubmit={handlePhoneSubmit}>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            Phone Number
-          </label>
+          <label htmlFor="email-si">Email</label>
           <input
-            type="tel"
-            placeholder="+1234567890"
-            value={phone}
-            onChange={(e) => setPhone(formatPhone(e.target.value))}
-            style={{ marginBottom: 'var(--space-lg)' }}
-            autoComplete="tel"
+            id="email-si"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => { clearError(); setEmail(e.target.value); }}
+            autoComplete="email"
+            inputMode="email"
           />
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            4-Digit PIN
-          </label>
+
+          <label htmlFor="pw-si">Password</label>
           <input
-            type="number"
-            inputMode="numeric"
-            placeholder="••••"
-            value={pin}
-            onChange={(e) => setPin(e.target.value.slice(0, 4))}
-            maxLength={4}
-            style={{ textAlign: 'center', fontSize: 'var(--font-2xl)', letterSpacing: '8px' }}
+            id="pw-si"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => { clearError(); setPassword(e.target.value); }}
             autoComplete="current-password"
           />
+
+          {error && <p className="error-msg">{error}</p>}
+
           <button
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: 'var(--space-lg)' }}
             type="submit"
+            className="btn btn-primary btn-full"
             disabled={loading}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in…' : 'Sign In'}
           </button>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--space-lg)' }}>
+
+          <div className="login-links">
             <button
               type="button"
-              className="btn btn-secondary"
-              style={{ fontSize: 'var(--font-body)' }}
-              onClick={() => {
-                clearError();
-                setPin('');
-                setStep(STEPS.PHONE);
-              }}
+              className="link-btn"
+              onClick={() => { clearError(); setPassword(''); setStep(STEPS.FORGOT); }}
             >
-              ← Back
+              Forgot password?
             </button>
             <button
               type="button"
-              className="btn btn-secondary"
-              style={{ fontSize: 'var(--font-body)' }}
-              onClick={handleForgotPin}
-              disabled={loading || phone.length < 10}
+              className="link-btn"
+              onClick={() => { clearError(); setPassword(''); setPasswordConfirm(''); setStep(STEPS.SIGN_UP); }}
             >
-              Forgot PIN
+              Create account →
             </button>
           </div>
         </form>
       )}
 
-      {/* OTP VERIFY (new user) */}
-      {step === STEPS.OTP && (
-        <div>
-          <p style={{ marginBottom: 'var(--space-lg)', color: 'var(--color-text-secondary)' }}>
-            Enter the 6-digit code sent to {phone}
-          </p>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="000000"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.slice(0, 6))}
-            maxLength={6}
-            style={{ textAlign: 'center', fontSize: 'var(--font-2xl)', letterSpacing: '8px' }}
-            autoComplete="one-time-code"
-          />
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: 'var(--space-lg)' }}
-            onClick={handleVerifyOtp}
-            disabled={loading}
-          >
-            {loading ? 'Verifying...' : 'Verify'}
-          </button>
-          <button
-            className="btn btn-secondary"
-            style={{ width: '100%', marginTop: 'var(--space-md)' }}
-            onClick={() => {
-              clearError();
-              setOtp('');
-              setStep(STEPS.PHONE);
-            }}
-          >
-            ← Back
-          </button>
-        </div>
-      )}
+      {/* ── Sign Up ── */}
+      {step === STEPS.SIGN_UP && (
+        <form className="login-form" onSubmit={handleSignUp} noValidate>
+          <h2>Create Account</h2>
 
-      {/* SET PIN (first time) */}
-      {(step === STEPS.SET_PIN || step === STEPS.RESET_PIN) && (
-        <div>
-          <h2 style={{ marginBottom: 'var(--space-lg)' }}>
-            {step === STEPS.RESET_PIN ? 'Reset Your PIN' : 'Set Your PIN'}
-          </h2>
-          <p style={{ marginBottom: 'var(--space-lg)', color: 'var(--color-text-secondary)' }}>
-            Choose a 4-digit PIN for quick sign-in.
-          </p>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            PIN
-          </label>
+          <label htmlFor="email-su">Email</label>
           <input
-            type="number"
-            inputMode="numeric"
-            placeholder="••••"
-            value={pin}
-            onChange={(e) => setPin(e.target.value.slice(0, 4))}
-            maxLength={4}
-            style={{ textAlign: 'center', fontSize: 'var(--font-2xl)', letterSpacing: '8px', marginBottom: 'var(--space-lg)' }}
+            id="email-su"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => { clearError(); setEmail(e.target.value); }}
+            autoComplete="email"
+            inputMode="email"
+          />
+
+          <label htmlFor="pw-su">Password</label>
+          <input
+            id="pw-su"
+            type="password"
+            placeholder="Min. 6 characters"
+            value={password}
+            onChange={(e) => { clearError(); setPassword(e.target.value); }}
             autoComplete="new-password"
           />
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            Confirm PIN
-          </label>
+
+          <label htmlFor="pw-confirm">Confirm Password</label>
           <input
-            type="number"
-            inputMode="numeric"
-            placeholder="••••"
-            value={pinConfirm}
-            onChange={(e) => setPinConfirm(e.target.value.slice(0, 4))}
-            maxLength={4}
-            style={{ textAlign: 'center', fontSize: 'var(--font-2xl)', letterSpacing: '8px' }}
+            id="pw-confirm"
+            type="password"
+            placeholder="Same password again"
+            value={passwordConfirm}
+            onChange={(e) => { clearError(); setPasswordConfirm(e.target.value); }}
             autoComplete="new-password"
           />
+
+          {error && <p className="error-msg">{error}</p>}
+
           <button
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: 'var(--space-lg)' }}
-            onClick={step === STEPS.RESET_PIN ? handleResetPin : handleSetPin}
+            type="submit"
+            className="btn btn-primary btn-full"
             disabled={loading}
           >
-            {loading ? 'Saving...' : 'Save PIN'}
+            {loading ? 'Creating account…' : 'Create Account'}
           </button>
-        </div>
+
+          <div className="login-links">
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => { clearError(); setPassword(''); setPasswordConfirm(''); setStep(STEPS.SIGN_IN); }}
+            >
+              ← Back to sign in
+            </button>
+          </div>
+        </form>
       )}
 
-      {/* FORGOT PIN — OTP VERIFY */}
-      {step === STEPS.FORGOT_OTP && (
-        <div>
-          <h2 style={{ marginBottom: 'var(--space-lg)' }}>Reset PIN</h2>
-          <p style={{ marginBottom: 'var(--space-lg)', color: 'var(--color-text-secondary)' }}>
-            Enter the 6-digit code sent to {phone}
+      {/* ── Forgot Password ── */}
+      {step === STEPS.FORGOT && (
+        <form className="login-form" onSubmit={handleForgot} noValidate>
+          <h2>Reset Password</h2>
+          <p className="login-hint">
+            Enter your email and we'll send you a reset link.
           </p>
+
+          <label htmlFor="email-fp">Email</label>
           <input
-            type="number"
-            inputMode="numeric"
-            placeholder="000000"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.slice(0, 6))}
-            maxLength={6}
-            style={{ textAlign: 'center', fontSize: 'var(--font-2xl)', letterSpacing: '8px' }}
-            autoComplete="one-time-code"
+            id="email-fp"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => { clearError(); setEmail(e.target.value); }}
+            autoComplete="email"
+            inputMode="email"
           />
+
+          {error && <p className="error-msg">{error}</p>}
+
           <button
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: 'var(--space-lg)' }}
-            onClick={handleForgotVerify}
+            type="submit"
+            className="btn btn-primary btn-full"
             disabled={loading}
           >
-            {loading ? 'Verifying...' : 'Verify'}
+            {loading ? 'Sending…' : 'Send Reset Link'}
           </button>
-          <button
-            className="btn btn-secondary"
-            style={{ width: '100%', marginTop: 'var(--space-md)' }}
-            onClick={() => {
-              clearError();
-              setOtp('');
-              setStep(STEPS.LOGIN_PIN);
-            }}
-          >
-            ← Back
-          </button>
-        </div>
+
+          <div className="login-links">
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => { clearError(); setStep(STEPS.SIGN_IN); }}
+            >
+              ← Back to sign in
+            </button>
+          </div>
+        </form>
       )}
 
-      {error && (
-        <p className="error-msg" style={{ textAlign: 'center', marginTop: 'var(--space-md)' }}>
-          {error}
-        </p>
+      {/* ── Reset Email Sent ── */}
+      {step === STEPS.FORGOT_SENT && (
+        <div className="login-form login-success">
+          <div className="success-icon">✉️</div>
+          <h2>Check your email</h2>
+          <p>
+            We sent a password reset link to <strong>{email}</strong>.
+            Click the link in that email, then come back and sign in.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary btn-full"
+            onClick={() => { clearError(); setStep(STEPS.SIGN_IN); }}
+          >
+            Back to Sign In
+          </button>
+        </div>
       )}
     </div>
   );
