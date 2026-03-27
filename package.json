@@ -1,0 +1,1 @@
+{"name":"hivelog","private":true,"version":"0.0.0","type":"module","scripts":{"dev":"vite","build":"vite build","preview":"vite preview"},"dependencies":{"@supabase/supabase-js":"^2.100.1","idb":"^8.0.3","react":"^19.2.4","react-dom":"^19.2.4","react-router-dom":"^7.13.2","vite-plugin-pwa":"^1.2.0"},"devDependencies":{"@vitejs/plugin-react":"^4.7.0","vite":"^6.4.1"}}
