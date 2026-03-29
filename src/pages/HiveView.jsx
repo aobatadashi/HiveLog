@@ -1,15 +1,49 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
+import { addToQueue } from '../lib/offlineQueue.js';
+import { cacheSet, cacheGet } from '../lib/cache.js';
 import EventRow from '../components/EventRow.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 
-export default function HiveView() {
+const PAGE_SIZE = 50;
+
+const TYPE_LABELS = {
+  inspection: 'Inspection',
+  treatment: 'Treatment',
+  feed: 'Feed',
+  split: 'Split',
+  loss: 'Loss',
+  requeen: 'Requeen',
+  harvest: 'Harvest',
+};
+
+export default function HiveView({ user }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { nextColonyId, nextColonyLabel } = location.state || {};
   const [colony, setColony] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+
+  const fetchEvents = useCallback(async (offset = 0) => {
+    const { data, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('colony_id', id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (eventError) throw eventError;
+    return data || [];
+  }, [id]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -22,46 +56,134 @@ export default function HiveView() {
       if (colonyError) throw colonyError;
       setColony(colonyData);
 
-      const { data: eventData, error: eventError } = await supabase
-        .from('events')
-        .select('*')
-        .eq('colony_id', id)
-        .order('created_at', { ascending: false });
-
-      if (eventError) throw eventError;
-      setEvents(eventData || []);
+      const data = await fetchEvents(0);
+      setEvents(data);
+      setHasMore(data.length === PAGE_SIZE);
+      await cacheSet('events', id, { colony: colonyData, events: data });
     } catch {
-      setError('Failed to load hive data');
+      const cached = await cacheGet('events', id);
+      if (cached) {
+        setColony(cached.colony);
+        setEvents(cached.events);
+        setHasMore(false);
+      } else {
+        setError('Failed to load hive data');
+      }
     }
     setLoading(false);
-  }, [id]);
+  }, [id, fetchEvents]);
+
+  async function handleLoadMore() {
+    setLoadingMore(true);
+    try {
+      const data = await fetchEvents(events.length);
+      setEvents((prev) => [...prev, ...data]);
+      setHasMore(data.length === PAGE_SIZE);
+    } catch {
+      setError('Failed to load more events');
+    }
+    setLoadingMore(false);
+  }
+
+  function handleToggleStatus() {
+    if (!colony) return;
+    const newStatus = colony.status === 'deadout' ? 'active' : 'deadout';
+    const label = colony.label || 'this colony';
+    const msg = newStatus === 'deadout'
+      ? `Mark ${label} as dead out?`
+      : `Mark ${label} as active?`;
+
+    setConfirmModal({
+      title: newStatus === 'deadout' ? 'Mark Dead Out' : 'Reactivate Colony',
+      message: msg,
+      confirmLabel: newStatus === 'deadout' ? 'Mark Dead Out' : 'Reactivate',
+      danger: newStatus === 'deadout',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setTogglingStatus(true);
+        try {
+          const { error: updateError } = await supabase
+            .from('colonies')
+            .update({ status: newStatus })
+            .eq('id', id);
+
+          if (updateError) throw updateError;
+        } catch {
+          await addToQueue({
+            table: 'colonies',
+            operation: 'update',
+            data: { id, status: newStatus },
+          });
+        }
+        setColony((prev) => ({ ...prev, status: newStatus }));
+        setTogglingStatus(false);
+      },
+      onCancel: () => setConfirmModal(null),
+    });
+  }
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const isDeadout = colony?.status === 'deadout';
 
   return (
     <div className="page">
       <div className="page-header">
         <button
           className="back-btn"
-          onClick={() => {
-            if (colony?.yards?.id) {
-              navigate(`/yard/${colony.yard_id}`);
-            } else {
-              navigate(-1);
-            }
-          }}
+          onClick={() => navigate(-1)}
         >
           ←
         </button>
         <h1>{colony?.label || 'Hive'}</h1>
       </div>
 
-      {colony?.yards?.name && (
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)', marginTop: 'calc(-1 * var(--space-md))' }}>
-          {colony.yards.name}
-        </p>
+      {colony && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-md)',
+          marginBottom: 'var(--space-lg)',
+          marginTop: 'calc(-1 * var(--space-md))',
+        }}>
+          {colony.yards?.name && (
+            <span style={{ color: 'var(--color-text-secondary)' }}>
+              {colony.yards.name}
+            </span>
+          )}
+          <button
+            className="status-badge"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-sm)',
+              padding: 'var(--space-sm) var(--space-md)',
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: 'var(--font-body)',
+              cursor: 'pointer',
+              minHeight: 'var(--touch-min)',
+              backgroundColor: isDeadout ? '#ffebee' : '#e8f5e9',
+              color: isDeadout ? 'var(--color-status-red)' : 'var(--color-status-green)',
+              WebkitTapHighlightColor: 'transparent',
+              transition: 'all 0.1s ease',
+            }}
+            onClick={handleToggleStatus}
+            disabled={togglingStatus}
+          >
+            <span style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              backgroundColor: isDeadout ? 'var(--color-status-red)' : 'var(--color-status-green)',
+              flexShrink: 0,
+            }} />
+            {togglingStatus ? '...' : isDeadout ? 'Dead Out' : 'Active'}
+          </button>
+        </div>
       )}
 
       {error && <p className="error-msg">{error}</p>}
@@ -75,9 +197,45 @@ export default function HiveView() {
         </div>
       ) : (
         <div>
-          {events.map((event) => (
-            <EventRow key={event.id} event={event} />
-          ))}
+          {/* Filter chips — only show types that exist in loaded events */}
+          {(() => {
+            const availableTypes = [...new Set(events.map((e) => e.type))];
+            if (availableTypes.length <= 1) return null;
+            return (
+              <div className="filter-chips">
+                <button
+                  className={`filter-chip ${filterType === 'all' ? 'active' : ''}`}
+                  onClick={() => setFilterType('all')}
+                >
+                  All
+                </button>
+                {availableTypes.map((type) => (
+                  <button
+                    key={type}
+                    className={`filter-chip ${filterType === type ? 'active' : ''}`}
+                    onClick={() => setFilterType(type)}
+                  >
+                    {TYPE_LABELS[type] || type}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+
+          {(filterType === 'all' ? events : events.filter((e) => e.type === filterType))
+            .map((event) => (
+              <EventRow key={event.id} event={event} />
+            ))}
+          {hasMore && filterType === 'all' && (
+            <button
+              className="btn btn-secondary"
+              style={{ width: '100%', marginTop: 'var(--space-md)' }}
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Loading...' : 'Load More'}
+            </button>
+          )}
         </div>
       )}
 
@@ -93,11 +251,28 @@ export default function HiveView() {
         <button
           className="btn btn-primary"
           style={{ width: '100%', maxWidth: '600px', margin: '0 auto', display: 'block', height: '72px', fontSize: 'var(--font-xl)' }}
-          onClick={() => navigate(`/log/${id}`)}
+          onClick={() => navigate(`/log/${id}?yard=${colony?.yard_id || ''}`, {
+            state: {
+              ...(nextColonyId ? { nextColonyId, nextColonyLabel } : {}),
+              colonyLabel: colony?.label,
+              yardName: colony?.yards?.name,
+            },
+          })}
         >
           Log Event
         </button>
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title || ''}
+        message={confirmModal?.message || ''}
+        confirmLabel={confirmModal?.confirmLabel || 'Confirm'}
+        cancelLabel="Cancel"
+        onConfirm={confirmModal?.onConfirm || (() => {})}
+        onCancel={confirmModal?.onCancel || (() => {})}
+        danger={confirmModal?.danger || false}
+      />
     </div>
   );
 }

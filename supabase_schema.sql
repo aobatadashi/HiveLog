@@ -127,3 +127,20 @@ CREATE POLICY "Users can update their own events"
 CREATE POLICY "Users can delete their own events"
   ON events FOR DELETE
   USING (auth.uid() = logged_by);
+
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
+-- FK indexes (PostgreSQL does NOT auto-create these)
+CREATE INDEX idx_yards_owner_id ON yards(owner_id);
+CREATE INDEX idx_colonies_yard_id ON colonies(yard_id);
+CREATE INDEX idx_events_colony_id ON events(colony_id);
+CREATE INDEX idx_events_logged_by ON events(logged_by);
+
+-- Composite index for event queries ordered by date per colony
+CREATE INDEX idx_events_colony_created ON events(colony_id, created_at DESC);
+
+-- Uniqueness constraints to prevent duplicate names within scope
+CREATE UNIQUE INDEX idx_yards_owner_name ON yards(owner_id, name);
+CREATE UNIQUE INDEX idx_colonies_yard_label ON colonies(yard_id, label);

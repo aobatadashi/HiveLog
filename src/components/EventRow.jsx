@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const TYPE_LABELS = {
   inspection: 'Inspection',
   treatment: 'Treatment',
@@ -9,6 +11,8 @@ const TYPE_LABELS = {
 };
 
 export default function EventRow({ event }) {
+  const [expanded, setExpanded] = useState(false);
+
   const date = new Date(event.created_at).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -35,17 +39,35 @@ export default function EventRow({ event }) {
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {event.notes && (
-          <p style={{
-            fontSize: 'var(--font-body)',
-            color: 'var(--color-text)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {event.notes}
-          </p>
+          <div>
+            <p style={{
+              fontSize: 'var(--font-body)',
+              color: 'var(--color-text)',
+              ...(expanded
+                ? { whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+                : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+            }}>
+              {event.notes}
+            </p>
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-accent)',
+                fontSize: 'var(--font-body)',
+                fontWeight: 600,
+                padding: 'var(--space-sm) 0',
+                minHeight: '44px',
+                cursor: 'pointer',
+                minWidth: 'auto',
+              }}
+            >
+              {expanded ? 'less' : 'more'}
+            </button>
+          </div>
         )}
-        <p style={{ fontSize: '16px', color: 'var(--color-text-secondary)', marginTop: 'var(--space-xs)' }}>
+        <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-xs)' }}>
           {date} at {time}
         </p>
       </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
 import { addToQueue } from '../lib/offlineQueue.js';
+import { cacheSet, cacheGet } from '../lib/cache.js';
 import YardCard from '../components/YardCard.jsx';
 
 export default function Home({ user }) {
@@ -11,42 +12,69 @@ export default function Home({ user }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
   const fetchYards = useCallback(async () => {
     try {
+      // Single query: yards with embedded colony IDs for counting
       const { data: yardData, error: yardError } = await supabase
         .from('yards')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*, colonies(id)')
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (yardError) throw yardError;
 
-      const yardsWithStats = await Promise.all(
-        (yardData || []).map(async (yard) => {
-          const { count } = await supabase
-            .from('colonies')
-            .select('*', { count: 'exact', head: true })
-            .eq('yard_id', yard.id);
+      // Fetch last activity per yard by paginating through recent events.
+      // Supabase caps at 1000 rows per request, so we page until all yards
+      // are covered or we run out of events.
+      const lastActivityByYard = {};
+      const yardCount = (yardData || []).length;
 
-          const { data: lastEvent } = await supabase
+      if (yardCount > 0) {
+        const PAGE = 1000;
+        let offset = 0;
+        const maxPages = 20; // Safety cap: 20K events max
+        for (let page = 0; page < maxPages; page++) {
+          const { data: recentEvents } = await supabase
             .from('events')
-            .select('created_at, colonies!inner(yard_id)')
-            .eq('colonies.yard_id', yard.id)
+            .select('colony_id, created_at, colonies!inner(yard_id)')
             .order('created_at', { ascending: false })
-            .limit(1);
+            .range(offset, offset + PAGE - 1);
 
-          return {
-            ...yard,
-            colony_count: count || 0,
-            last_activity: lastEvent?.[0]?.created_at || null,
-          };
-        })
-      );
+          if (!recentEvents || recentEvents.length === 0) break;
+
+          for (const evt of recentEvents) {
+            const yardId = evt.colonies?.yard_id;
+            if (yardId && !lastActivityByYard[yardId]) {
+              lastActivityByYard[yardId] = evt.created_at;
+            }
+          }
+
+          // Stop if all yards are covered or we got fewer rows than requested
+          if (Object.keys(lastActivityByYard).length >= yardCount) break;
+          if (recentEvents.length < PAGE) break;
+          offset += PAGE;
+        }
+      }
+
+      const yardsWithStats = (yardData || []).map((yard) => ({
+        ...yard,
+        colony_count: yard.colonies?.length || 0,
+        last_activity: lastActivityByYard[yard.id] || null,
+      }));
 
       setYards(yardsWithStats);
+      await cacheSet('yards', 'all', yardsWithStats);
     } catch {
-      setError('Failed to load yards');
+      // Try to load from cache
+      const cached = await cacheGet('yards', 'all');
+      if (cached) {
+        setYards(cached);
+      } else {
+        setError('Failed to load yards');
+      }
     }
     setLoading(false);
   }, []);
@@ -75,7 +103,11 @@ export default function Home({ user }) {
       if (insertError) throw insertError;
 
       setYards((prev) => [{ ...data, colony_count: 0, last_activity: null }, ...prev]);
-    } catch {
+    } catch (err) {
+      if (err?.code === '23505') {
+        setError('A yard with that name already exists');
+        return;
+      }
       await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
     }
 
@@ -91,7 +123,7 @@ export default function Home({ user }) {
         <button
           className="btn btn-secondary"
           onClick={() => navigate('/settings')}
-          style={{ minWidth: 'auto', padding: 'var(--space-sm) var(--space-md)' }}
+
         >
           Settings
         </button>
@@ -99,16 +131,51 @@ export default function Home({ user }) {
 
       {error && <p className="error-msg">{error}</p>}
 
-      {loading ? (
-        <div className="loading"><div className="spinner" /></div>
-      ) : yards.length === 0 ? (
-        <div className="empty-state">
-          <p>No yards yet</p>
-          <p>Tap + to add your first yard</p>
+      {!loading && yards.length > 0 && (
+        <div className="search-wrap">
+          <input
+            type="text"
+            placeholder="Search yards…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="search-clear" onClick={() => setSearch('')} aria-label="Clear search">
+              ×
+            </button>
+          )}
         </div>
-      ) : (
-        yards.map((yard) => <YardCard key={yard.id} yard={yard} />)
       )}
+
+      {(() => {
+        const q = search.toLowerCase().trim();
+        const filtered = q
+          ? yards.filter((y) =>
+              y.name.toLowerCase().includes(q) ||
+              (y.location_note && y.location_note.toLowerCase().includes(q))
+            )
+          : yards;
+
+        if (loading) {
+          return <div className="loading"><div className="spinner" /></div>;
+        }
+        if (yards.length === 0) {
+          return (
+            <div className="empty-state">
+              <p>No yards yet</p>
+              <p>Tap + to add your first yard</p>
+            </div>
+          );
+        }
+        if (filtered.length === 0) {
+          return (
+            <div className="empty-state">
+              <p>No yards match &ldquo;{search}&rdquo;</p>
+            </div>
+          );
+        }
+        return filtered.map((yard) => <YardCard key={yard.id} yard={yard} />);
+      })()}
 
       <button className="fab" onClick={() => setShowAdd(true)} aria-label="Add yard">
         +

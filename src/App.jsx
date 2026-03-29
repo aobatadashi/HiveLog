@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.js';
 import { setupOnlineSync } from './lib/sync.js';
@@ -23,11 +23,23 @@ export default function App() {
   const { user, loading, signOut } = useAuth();
   const [toast, setToast] = useState(null);
 
+  const handleToast = useCallback((msg) => setToast(msg), []);
+
   useEffect(() => {
-    const cleanup = setupOnlineSync((count) => {
+    const showSyncToast = (count) => {
       setToast(`Synced ${count} pending ${count === 1 ? 'change' : 'changes'}`);
-    });
-    return cleanup;
+    };
+
+    const showSyncError = (failed) => {
+      const count = failed.length;
+      setToast(`${count} ${count === 1 ? 'change' : 'changes'} failed to sync and ${count === 1 ? 'was' : 'were'} discarded`);
+    };
+
+    const cleanup = setupOnlineSync(showSyncToast, showSyncError);
+
+    return () => {
+      cleanup();
+    };
   }, []);
 
   if (loading) {
@@ -48,7 +60,8 @@ export default function App() {
             <Route path="/" element={<Home user={user} />} />
             <Route path="/yard/:id" element={<YardView user={user} />} />
             <Route path="/hive/:id" element={<HiveView user={user} />} />
-            <Route path="/log/:colonyId" element={<LogEvent user={user} />} />
+            <Route path="/log/:colonyId" element={<LogEvent user={user} onToast={handleToast} />} />
+            <Route path="/log-yard/:yardId" element={<LogEvent user={user} onToast={handleToast} />} />
             <Route path="/settings" element={<Settings user={user} onSignOut={signOut} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

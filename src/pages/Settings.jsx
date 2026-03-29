@@ -1,22 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
+import { addToQueue } from '../lib/offlineQueue.js';
 
 export default function Settings({ user, onSignOut }) {
   const navigate = useNavigate();
   const [yards, setYards] = useState([]);
   const [colonies, setColonies] = useState({});
-  const [expandedYard, setExpandedYard] = useState(null);
+  const [expandedYards, setExpandedYards] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
       const { data: yardData, error: yardError } = await supabase
         .from('yards')
         .select('*')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (yardError) throw yardError;
       setYards(yardData || []);
@@ -45,47 +48,117 @@ export default function Settings({ user, onSignOut }) {
   }
 
   function toggleYard(yardId) {
-    if (expandedYard === yardId) {
-      setExpandedYard(null);
-    } else {
-      setExpandedYard(yardId);
-      fetchColonies(yardId);
-    }
+    setExpandedYards((prev) => {
+      const next = new Set(prev);
+      if (next.has(yardId)) {
+        next.delete(yardId);
+      } else {
+        next.add(yardId);
+        fetchColonies(yardId);
+      }
+      return next;
+    });
   }
 
   async function handleYardNameChange(yardId, newName) {
     setSaving(yardId);
-    const { error: updateError } = await supabase
-      .from('yards')
-      .update({ name: newName })
-      .eq('id', yardId);
+    try {
+      const { error: updateError } = await supabase
+        .from('yards')
+        .update({ name: newName })
+        .eq('id', yardId);
 
-    if (updateError) {
-      setError('Failed to update yard name');
-    } else {
+      if (updateError) {
+        if (updateError.code === '23505') {
+          setError('A yard with that name already exists');
+        } else {
+          throw updateError;
+        }
+      } else {
+        setYards((prev) =>
+          prev.map((y) => (y.id === yardId ? { ...y, name: newName } : y))
+        );
+      }
+    } catch {
+      // Optimistic local update + queue for sync
       setYards((prev) =>
         prev.map((y) => (y.id === yardId ? { ...y, name: newName } : y))
       );
+      await addToQueue({ table: 'yards', operation: 'update', data: { id: yardId, name: newName } });
+      if (!navigator.onLine) {
+        setError('Saved offline — will sync when connected');
+      } else {
+        setError('Failed to update yard name');
+      }
+    }
+    setSaving(null);
+  }
+
+  async function handleLocationNoteChange(yardId, newNote) {
+    setSaving(yardId);
+    try {
+      const { error: updateError } = await supabase
+        .from('yards')
+        .update({ location_note: newNote || null })
+        .eq('id', yardId);
+      if (updateError) throw updateError;
+      setYards((prev) =>
+        prev.map((y) => (y.id === yardId ? { ...y, location_note: newNote || null } : y))
+      );
+    } catch {
+      setYards((prev) =>
+        prev.map((y) => (y.id === yardId ? { ...y, location_note: newNote || null } : y))
+      );
+      await addToQueue({
+        table: 'yards',
+        operation: 'update',
+        data: { id: yardId, location_note: newNote || null },
+      });
+      if (!navigator.onLine) {
+        setError('Saved offline — will sync when connected');
+      } else {
+        setError('Failed to update location note');
+      }
     }
     setSaving(null);
   }
 
   async function handleColonyLabelChange(colonyId, yardId, newLabel) {
     setSaving(colonyId);
-    const { error: updateError } = await supabase
-      .from('colonies')
-      .update({ label: newLabel })
-      .eq('id', colonyId);
+    try {
+      const { error: updateError } = await supabase
+        .from('colonies')
+        .update({ label: newLabel })
+        .eq('id', colonyId);
 
-    if (updateError) {
-      setError('Failed to update hive label');
-    } else {
+      if (updateError) {
+        if (updateError.code === '23505') {
+          setError('A colony with that label already exists in this yard');
+        } else {
+          throw updateError;
+        }
+      } else {
+        setColonies((prev) => ({
+          ...prev,
+          [yardId]: prev[yardId].map((c) =>
+            c.id === colonyId ? { ...c, label: newLabel } : c
+          ),
+        }));
+      }
+    } catch {
+      // Optimistic local update + queue for sync
       setColonies((prev) => ({
         ...prev,
         [yardId]: prev[yardId].map((c) =>
           c.id === colonyId ? { ...c, label: newLabel } : c
         ),
       }));
+      await addToQueue({ table: 'colonies', operation: 'update', data: { id: colonyId, label: newLabel } });
+      if (!navigator.onLine) {
+        setError('Saved offline — will sync when connected');
+      } else {
+        setError('Failed to update hive label');
+      }
     }
     setSaving(null);
   }
@@ -110,21 +183,53 @@ export default function Settings({ user, onSignOut }) {
       ) : (
         <div>
           <h2 style={{ marginBottom: 'var(--space-lg)' }}>Yards & Hives</h2>
-          {yards.map((yard) => (
+          {yards.length > 3 && (
+            <div className="search-wrap" style={{ marginBottom: 'var(--space-lg)' }}>
+              <input
+                type="text"
+                placeholder="Search yards..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="search-clear" onClick={() => setSearch('')} aria-label="Clear search">
+                  ×
+                </button>
+              )}
+            </div>
+          )}
+          {(() => {
+            const q = search.toLowerCase().trim();
+            const filtered = q
+              ? yards.filter((y) =>
+                  y.name.toLowerCase().includes(q) ||
+                  (y.location_note && y.location_note.toLowerCase().includes(q))
+                )
+              : yards;
+
+            if (filtered.length === 0 && q) {
+              return (
+                <div className="empty-state">
+                  <p>No yards match &ldquo;{search}&rdquo;</p>
+                </div>
+              );
+            }
+
+            return filtered.map((yard) => (
             <div key={yard.id} style={{ marginBottom: 'var(--space-md)' }}>
               <div
                 className="card"
-                style={{ marginBottom: expandedYard === yard.id ? 0 : 'var(--space-md)' }}
+                style={{ marginBottom: expandedYards.has(yard.id) ? 0 : 'var(--space-md)' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
                   <button
                     style={{
                       background: 'none',
                       border: 'none',
-                      fontSize: 'var(--font-lg)',
-                      padding: 'var(--space-sm)',
-                      minWidth: '40px',
-                      minHeight: '40px',
+                      fontSize: 'var(--font-xl)',
+                      padding: 'var(--space-md)',
+                      minWidth: '56px',
+                      minHeight: '56px',
                       cursor: 'pointer',
                     }}
                     onClick={(e) => {
@@ -132,23 +237,37 @@ export default function Settings({ user, onSignOut }) {
                       toggleYard(yard.id);
                     }}
                   >
-                    {expandedYard === yard.id ? '▼' : '▶'}
+                    {expandedYards.has(yard.id) ? '▼' : '▶'}
                   </button>
-                  <input
-                    type="text"
-                    defaultValue={yard.name}
-                    onBlur={(e) => {
-                      if (e.target.value.trim() && e.target.value !== yard.name) {
-                        handleYardNameChange(yard.id, e.target.value.trim());
-                      }
-                    }}
-                    style={{ flex: 1, border: 'none', fontSize: 'var(--font-lg)', fontWeight: 600, padding: 'var(--space-sm)' }}
-                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <input
+                      type="text"
+                      defaultValue={yard.name}
+                      onBlur={(e) => {
+                        if (e.target.value.trim() && e.target.value !== yard.name) {
+                          handleYardNameChange(yard.id, e.target.value.trim());
+                        }
+                      }}
+                      style={{ width: '100%', border: 'none', fontSize: 'var(--font-lg)', fontWeight: 600, padding: 'var(--space-sm)' }}
+                    />
+                    <input
+                      type="text"
+                      defaultValue={yard.location_note || ''}
+                      placeholder="Add location note..."
+                      onBlur={(e) => {
+                        const trimmed = e.target.value.trim();
+                        if (trimmed !== (yard.location_note || '')) {
+                          handleLocationNoteChange(yard.id, trimmed);
+                        }
+                      }}
+                      style={{ width: '100%', border: 'none', fontSize: 'var(--font-body)', padding: 'var(--space-sm)', color: 'var(--color-text-secondary)' }}
+                    />
+                  </div>
                   {saving === yard.id && <span style={{ color: 'var(--color-text-secondary)' }}>Saving...</span>}
                 </div>
               </div>
 
-              {expandedYard === yard.id && (
+              {expandedYards.has(yard.id) && (
                 <div style={{
                   backgroundColor: 'var(--color-surface)',
                   borderRadius: '0 0 var(--radius-md) var(--radius-md)',
@@ -171,6 +290,7 @@ export default function Settings({ user, onSignOut }) {
                           alignItems: 'center',
                           gap: 'var(--space-md)',
                           padding: 'var(--space-sm) var(--space-md)',
+                          minHeight: 'var(--touch-min)',
                           borderBottom: '1px solid var(--color-border)',
                         }}
                       >
@@ -184,14 +304,15 @@ export default function Settings({ user, onSignOut }) {
                           }}
                           style={{ flex: 1, border: 'none', fontSize: 'var(--font-body)', padding: 'var(--space-sm)' }}
                         />
-                        {saving === colony.id && <span style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>Saving...</span>}
+                        {saving === colony.id && <span style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)' }}>Saving...</span>}
                       </div>
                     ))
                   )}
                 </div>
               )}
             </div>
-          ))}
+          ));
+          })()}
         </div>
       )}
 
