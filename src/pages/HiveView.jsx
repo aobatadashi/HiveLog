@@ -5,6 +5,9 @@ import { addToQueue } from '../lib/offlineQueue.js';
 import { cacheSet, cacheGet } from '../lib/cache.js';
 import EventRow from '../components/EventRow.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import QueenInfo from '../components/QueenInfo.jsx';
+import QueenModal from '../components/QueenModal.jsx';
+import WithdrawalBadge from '../components/WithdrawalBadge.jsx';
 
 const PAGE_SIZE = 50;
 
@@ -32,6 +35,10 @@ export default function HiveView({ user }) {
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null);
   const [filterType, setFilterType] = useState('all');
+  const [queen, setQueen] = useState(null);
+  const [queenModal, setQueenModal] = useState(false);
+  const [treatmentDetailsMap, setTreatmentDetailsMap] = useState({});
+  const [activeWithdrawal, setActiveWithdrawal] = useState(null);
 
   const fetchEvents = useCallback(async (offset = 0) => {
     const { data, error: eventError } = await supabase
@@ -59,12 +66,53 @@ export default function HiveView({ user }) {
       const data = await fetchEvents(0);
       setEvents(data);
       setHasMore(data.length === PAGE_SIZE);
-      await cacheSet('events', id, { colony: colonyData, events: data });
+
+      // Fetch active queen
+      const { data: queenData } = await supabase
+        .from('queens')
+        .select('*')
+        .eq('colony_id', id)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+      setQueen(queenData || null);
+
+      // Fetch treatment details for treatment events
+      const treatmentEventIds = data.filter((e) => e.type === 'treatment').map((e) => e.id);
+      const tdMap = {};
+      if (treatmentEventIds.length > 0) {
+        const { data: tdData } = await supabase
+          .from('treatment_details')
+          .select('*')
+          .in('event_id', treatmentEventIds);
+        if (tdData) {
+          for (const td of tdData) tdMap[td.event_id] = td;
+        }
+      }
+      setTreatmentDetailsMap(tdMap);
+
+      // Find most recent active withdrawal for header badge
+      const now = new Date();
+      let latestWithdrawal = null;
+      for (const evt of data) {
+        const td = tdMap[evt.id];
+        if (td && td.withdrawal_period_days > 0) {
+          const end = new Date(new Date(evt.created_at).getTime() + td.withdrawal_period_days * 86400000);
+          if (end > now && (!latestWithdrawal || end > latestWithdrawal.end)) {
+            latestWithdrawal = { date: evt.created_at, days: td.withdrawal_period_days, end };
+          }
+        }
+      }
+      setActiveWithdrawal(latestWithdrawal);
+
+      await cacheSet('events', id, { colony: colonyData, events: data, queen: queenData || null, treatmentDetails: tdMap });
     } catch {
       const cached = await cacheGet('events', id);
       if (cached) {
         setColony(cached.colony);
         setEvents(cached.events);
+        setQueen(cached.queen || null);
+        setTreatmentDetailsMap(cached.treatmentDetails || {});
         setHasMore(false);
       } else {
         setError('Failed to load hive data');
@@ -120,6 +168,39 @@ export default function HiveView({ user }) {
       },
       onCancel: () => setConfirmModal(null),
     });
+  }
+
+  async function handleQueenSave(queenData) {
+    const isEditing = Boolean(queen?.id);
+    if (isEditing) {
+      try {
+        const { error: updateError } = await supabase
+          .from('queens')
+          .update(queenData)
+          .eq('id', queen.id);
+        if (updateError) throw updateError;
+      } catch {
+        await addToQueue({ table: 'queens', operation: 'update', data: { id: queen.id, ...queenData } });
+      }
+      setQueen((prev) => ({ ...prev, ...queenData }));
+    } else {
+      const newQueen = { colony_id: id, ...queenData };
+      try {
+        const { data: inserted, error: insertError } = await supabase
+          .from('queens')
+          .insert(newQueen)
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        setQueen(inserted);
+      } catch {
+        const tempId = crypto.randomUUID();
+        const withId = { id: tempId, ...newQueen, created_at: new Date().toISOString() };
+        await addToQueue({ table: 'queens', operation: 'insert', data: withId });
+        setQueen(withId);
+      }
+    }
+    setQueenModal(false);
   }
 
   useEffect(() => {
@@ -183,7 +264,21 @@ export default function HiveView({ user }) {
             }} />
             {togglingStatus ? '...' : isDeadout ? 'Dead Out' : 'Active'}
           </button>
+          {activeWithdrawal && (
+            <WithdrawalBadge
+              treatmentDate={activeWithdrawal.date}
+              withdrawalDays={activeWithdrawal.days}
+            />
+          )}
         </div>
+      )}
+
+      {colony && (
+        <QueenInfo
+          queen={queen}
+          onEdit={() => setQueenModal(true)}
+          onAdd={() => setQueenModal(true)}
+        />
       )}
 
       {error && <p className="error-msg">{error}</p>}
@@ -224,7 +319,7 @@ export default function HiveView({ user }) {
 
           {(filterType === 'all' ? events : events.filter((e) => e.type === filterType))
             .map((event) => (
-              <EventRow key={event.id} event={event} />
+              <EventRow key={event.id} event={event} treatmentDetail={treatmentDetailsMap[event.id]} />
             ))}
           {hasMore && filterType === 'all' && (
             <button
@@ -272,6 +367,13 @@ export default function HiveView({ user }) {
         onConfirm={confirmModal?.onConfirm || (() => {})}
         onCancel={confirmModal?.onCancel || (() => {})}
         danger={confirmModal?.danger || false}
+      />
+
+      <QueenModal
+        isOpen={queenModal}
+        queen={queen}
+        onSave={handleQueenSave}
+        onCancel={() => setQueenModal(false)}
       />
     </div>
   );

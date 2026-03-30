@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import WithdrawalBadge from './WithdrawalBadge.jsx';
 
 const TYPE_LABELS = {
   inspection: 'Inspection',
@@ -10,7 +11,7 @@ const TYPE_LABELS = {
   harvest: 'Harvest',
 };
 
-export default function EventRow({ event }) {
+export default function EventRow({ event, treatmentDetail }) {
   const [expanded, setExpanded] = useState(false);
 
   const date = new Date(event.created_at).toLocaleDateString(undefined, {
@@ -65,6 +66,22 @@ export default function EventRow({ event }) {
             >
               {expanded ? 'less' : 'more'}
             </button>
+          </div>
+        )}
+        {treatmentDetail && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)', alignItems: 'center', marginTop: 'var(--space-xs)' }}>
+            <span style={{ fontWeight: 600, fontSize: 'var(--font-body)', color: 'var(--color-text)' }}>
+              {treatmentDetail.product_name}
+            </span>
+            {treatmentDetail.dosage && (
+              <span style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)' }}>
+                {treatmentDetail.dosage}
+              </span>
+            )}
+            <WithdrawalBadge
+              treatmentDate={event.created_at}
+              withdrawalDays={treatmentDetail.withdrawal_period_days}
+            />
           </div>
         )}
         <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-xs)' }}>

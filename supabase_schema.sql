@@ -144,3 +144,139 @@ CREATE INDEX idx_events_colony_created ON events(colony_id, created_at DESC);
 -- Uniqueness constraints to prevent duplicate names within scope
 CREATE UNIQUE INDEX idx_yards_owner_name ON yards(owner_id, name);
 CREATE UNIQUE INDEX idx_colonies_yard_label ON colonies(yard_id, label);
+
+-- ============================================================
+-- QUEENS
+-- ============================================================
+CREATE TABLE queens (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  colony_id         UUID NOT NULL REFERENCES colonies(id) ON DELETE CASCADE,
+  marking_color     TEXT CHECK (marking_color IN ('white', 'yellow', 'red', 'green', 'blue')),
+  source            TEXT,
+  introduction_date DATE,
+  notes             TEXT,
+  status            TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'replaced', 'lost')),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE queens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view queens in their colonies"
+  ON queens FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM colonies
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE colonies.id = queens.colony_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert queens in their colonies"
+  ON queens FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM colonies
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE colonies.id = queens.colony_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update queens in their colonies"
+  ON queens FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM colonies
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE colonies.id = queens.colony_id AND yards.owner_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM colonies
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE colonies.id = queens.colony_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete queens in their colonies"
+  ON queens FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM colonies
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE colonies.id = queens.colony_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE INDEX idx_queens_colony_id ON queens(colony_id);
+CREATE INDEX idx_queens_colony_status ON queens(colony_id, status);
+
+-- ============================================================
+-- TREATMENT DETAILS
+-- ============================================================
+CREATE TABLE treatment_details (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id               UUID NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  product_name           TEXT NOT NULL,
+  dosage                 TEXT,
+  application_method     TEXT,
+  withdrawal_period_days INTEGER,
+  lot_number             TEXT,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE treatment_details ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view treatment details for their events"
+  ON treatment_details FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM events
+      JOIN colonies ON colonies.id = events.colony_id
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE events.id = treatment_details.event_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert treatment details for their events"
+  ON treatment_details FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM events
+      JOIN colonies ON colonies.id = events.colony_id
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE events.id = treatment_details.event_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update treatment details for their events"
+  ON treatment_details FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM events
+      JOIN colonies ON colonies.id = events.colony_id
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE events.id = treatment_details.event_id AND yards.owner_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM events
+      JOIN colonies ON colonies.id = events.colony_id
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE events.id = treatment_details.event_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete treatment details for their events"
+  ON treatment_details FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM events
+      JOIN colonies ON colonies.id = events.colony_id
+      JOIN yards ON yards.id = colonies.yard_id
+      WHERE events.id = treatment_details.event_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE INDEX idx_treatment_details_event_id ON treatment_details(event_id);

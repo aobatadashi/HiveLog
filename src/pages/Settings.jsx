@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
 import { addToQueue } from '../lib/offlineQueue.js';
+import { exportAllEvents, exportColonyStatus, exportTreatmentLog } from '../lib/csvExport.js';
 
 export default function Settings({ user, onSignOut }) {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function Settings({ user, onSignOut }) {
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -315,6 +317,78 @@ export default function Settings({ user, onSignOut }) {
           })()}
         </div>
       )}
+
+      <div style={{ marginTop: 'var(--space-2xl)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-xl)' }}>
+        <h2 style={{ marginBottom: 'var(--space-lg)' }}>Data Export</h2>
+        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)', fontSize: 'var(--font-body)' }}>
+          Download your data as CSV files for compliance reporting or backup.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+          <button
+            className="btn btn-export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting('events');
+              setError('');
+              try {
+                const result = await exportAllEvents();
+                if (!result.success) {
+                  setError('No events to export');
+                } else if (result.offline) {
+                  setError('Exported from cached data — may be incomplete');
+                }
+              } catch {
+                setError('Export failed');
+              }
+              setExporting(null);
+            }}
+          >
+            {exporting === 'events' ? 'Exporting…' : 'Export All Events'}
+          </button>
+          <button
+            className="btn btn-export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting('colonies');
+              setError('');
+              try {
+                const result = await exportColonyStatus();
+                if (!result.success) {
+                  setError('No colonies to export');
+                } else if (result.offline) {
+                  setError('Exported from cached data — may be incomplete');
+                }
+              } catch {
+                setError('Export failed');
+              }
+              setExporting(null);
+            }}
+          >
+            {exporting === 'colonies' ? 'Exporting…' : 'Export Colony Status'}
+          </button>
+          <button
+            className="btn btn-export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting('treatments');
+              setError('');
+              try {
+                const result = await exportTreatmentLog();
+                if (!result.success) {
+                  setError('No treatment records to export');
+                } else if (result.offline) {
+                  setError('Exported from cached data — may be incomplete');
+                }
+              } catch {
+                setError('Export failed');
+              }
+              setExporting(null);
+            }}
+          >
+            {exporting === 'treatments' ? 'Exporting…' : 'Export Treatment Log'}
+          </button>
+        </div>
+      </div>
 
       <div style={{ marginTop: 'var(--space-2xl)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-xl)' }}>
         <button

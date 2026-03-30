@@ -166,6 +166,25 @@ button:active,
   background-color: var(--color-danger-active);
 }
 
+/* Export button */
+.btn-export {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: 2px solid var(--color-accent);
+  width: 100%;
+  font-weight: 600;
+}
+
+.btn-export:active {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.btn-export:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* FAB (Floating Action Button) */
 .fab {
   position: fixed;
@@ -725,7 +744,7 @@ textarea {
   line-height: 1.6;
 }
 
-/* PIN input group */
+/* PIN input group (legacy — kept for compat) */
 .pin-input-group {
   display: flex;
   gap: var(--space-md);
@@ -738,4 +757,26 @@ textarea {
   text-align: center;
   font-size: var(--font-2xl);
   font-weight: 700;
+}
+
+/* Number pad for PIN/OTP entry */
+.numpad-btn {
+  width: 100%;
+  height: 64px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-xl);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+  min-width: var(--touch-preferred);
+}
+
+.numpad-btn:active {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
 }

@@ -4,6 +4,8 @@ import { supabase } from '../supabaseClient.js';
 import { addToQueue } from '../lib/offlineQueue.js';
 import { cacheGet } from '../lib/cache.js';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import QueenModal from '../components/QueenModal.jsx';
+import TreatmentForm from '../components/TreatmentForm.jsx';
 
 const EVENT_TYPES = [
   { value: 'inspection', label: 'Inspection', emoji: '🔍' },
@@ -31,6 +33,8 @@ export default function LogEvent({ user, onToast }) {
   const [yardColonies, setYardColonies] = useState([]);
   const [yardName, setYardName] = useState('');
   const [usingCachedColonies, setUsingCachedColonies] = useState(false);
+  const [queenModal, setQueenModal] = useState(false);
+  const [treatmentDetails, setTreatmentDetails] = useState({});
 
   const isBatchMode = Boolean(yardId);
   // For single-colony mode, get yardId from query param (for "next hive" nav)
@@ -80,9 +84,12 @@ export default function LogEvent({ user, onToast }) {
 
     const now = new Date().toISOString();
 
+    const hasTreatmentDetails = selectedType === 'treatment' && treatmentDetails.product_name;
+
     if (isBatchMode) {
-      // Insert one event per active colony
+      // Insert one event per active colony, with client-side UUIDs
       const eventsToInsert = yardColonies.map((colony) => ({
+        id: crypto.randomUUID(),
         colony_id: colony.id,
         type: selectedType,
         notes: notes.trim() || null,
@@ -102,10 +109,41 @@ export default function LogEvent({ user, onToast }) {
           .insert(eventsToInsert);
 
         if (insertError) throw insertError;
+
+        // Save treatment details for each event
+        if (hasTreatmentDetails) {
+          const detailsToInsert = eventsToInsert.map((evt) => ({
+            event_id: evt.id,
+            product_name: treatmentDetails.product_name,
+            dosage: treatmentDetails.dosage?.trim() || null,
+            application_method: treatmentDetails.application_method || null,
+            withdrawal_period_days: treatmentDetails.withdrawal_period_days || null,
+            lot_number: treatmentDetails.lot_number?.trim() || null,
+          }));
+          const { error: detailError } = await supabase
+            .from('treatment_details')
+            .insert(detailsToInsert);
+          if (detailError) throw detailError;
+        }
       } catch {
         // Queue each event individually for offline sync
         for (const evt of eventsToInsert) {
           await addToQueue({ table: 'events', operation: 'insert', data: evt });
+          if (hasTreatmentDetails) {
+            await addToQueue({
+              table: 'treatment_details',
+              operation: 'insert',
+              data: {
+                id: crypto.randomUUID(),
+                event_id: evt.id,
+                product_name: treatmentDetails.product_name,
+                dosage: treatmentDetails.dosage?.trim() || null,
+                application_method: treatmentDetails.application_method || null,
+                withdrawal_period_days: treatmentDetails.withdrawal_period_days || null,
+                lot_number: treatmentDetails.lot_number?.trim() || null,
+              },
+            });
+          }
         }
       }
 
@@ -114,8 +152,10 @@ export default function LogEvent({ user, onToast }) {
       if (onToast) onToast(`Logged ${typeLabel} on ${eventsToInsert.length} colonies`);
       navigate(`/yard/${yardId}`, { replace: true });
     } else {
-      // Single colony mode
+      // Single colony mode — use client-side UUID for treatment_details FK
+      const eventId = crypto.randomUUID();
       const eventData = {
+        id: eventId,
         colony_id: colonyId,
         type: selectedType,
         notes: notes.trim() || null,
@@ -128,11 +168,67 @@ export default function LogEvent({ user, onToast }) {
           .insert(eventData);
 
         if (insertError) throw insertError;
+
+        if (hasTreatmentDetails) {
+          const { error: detailError } = await supabase
+            .from('treatment_details')
+            .insert({
+              event_id: eventId,
+              product_name: treatmentDetails.product_name,
+              dosage: treatmentDetails.dosage?.trim() || null,
+              application_method: treatmentDetails.application_method || null,
+              withdrawal_period_days: treatmentDetails.withdrawal_period_days || null,
+              lot_number: treatmentDetails.lot_number?.trim() || null,
+            });
+          if (detailError) throw detailError;
+        }
       } catch {
         await addToQueue({ table: 'events', operation: 'insert', data: eventData });
+        if (hasTreatmentDetails) {
+          await addToQueue({
+            table: 'treatment_details',
+            operation: 'insert',
+            data: {
+              id: crypto.randomUUID(),
+              event_id: eventId,
+              product_name: treatmentDetails.product_name,
+              dosage: treatmentDetails.dosage?.trim() || null,
+              application_method: treatmentDetails.application_method || null,
+              withdrawal_period_days: treatmentDetails.withdrawal_period_days || null,
+              lot_number: treatmentDetails.lot_number?.trim() || null,
+            },
+          });
+        }
       }
 
       const typeLabel = EVENT_TYPES.find((t) => t.value === selectedType)?.label || selectedType;
+
+      // If requeen event (single colony), prompt to record new queen
+      if (selectedType === 'requeen') {
+        setSaving(false);
+        if (onToast) onToast(`Logged ${typeLabel}`);
+        // Mark any existing active queen as replaced
+        try {
+          const { data: activeQueens } = await supabase
+            .from('queens')
+            .select('id')
+            .eq('colony_id', colonyId)
+            .eq('status', 'active');
+          if (activeQueens && activeQueens.length > 0) {
+            for (const q of activeQueens) {
+              try {
+                await supabase.from('queens').update({ status: 'replaced' }).eq('id', q.id);
+              } catch {
+                await addToQueue({ table: 'queens', operation: 'update', data: { id: q.id, status: 'replaced' } });
+              }
+            }
+          }
+        } catch {
+          // Offline — skip queen replacement, user can fix later
+        }
+        setQueenModal(true);
+        return;
+      }
 
       // If loss event, prompt to mark as deadout via modal
       if (selectedType === 'loss') {
@@ -291,7 +387,11 @@ export default function LogEvent({ user, onToast }) {
           placeholder="Any observations..."
           rows={3}
         />
-      </div></>}
+      </div>
+
+      {selectedType === 'treatment' && (
+        <TreatmentForm value={treatmentDetails} onChange={setTreatmentDetails} />
+      )}</>}
 
       {error && <p className="error-msg">{error}</p>}
 
@@ -327,7 +427,7 @@ export default function LogEvent({ user, onToast }) {
           className="btn btn-primary"
           style={{ width: '100%', height: '72px', fontSize: 'var(--font-xl)' }}
           onClick={handleSave}
-          disabled={!selectedType || saving}
+          disabled={!selectedType || saving || (selectedType === 'treatment' && !treatmentDetails.product_name)}
         >
           {saving ? 'Saving...' : isBatchMode ? `Save for ${yardColonies.length} Colonies` : 'Save'}
         </button>
@@ -342,6 +442,30 @@ export default function LogEvent({ user, onToast }) {
         onConfirm={confirmModal?.onConfirm || (() => {})}
         onCancel={confirmModal?.onCancel || (() => {})}
         danger={confirmModal?.danger || false}
+      />
+
+      <QueenModal
+        isOpen={queenModal}
+        queen={null}
+        onSave={async (queenData) => {
+          const newQueen = { colony_id: colonyId, ...queenData };
+          try {
+            const { error: insertError } = await supabase
+              .from('queens')
+              .insert(newQueen);
+            if (insertError) throw insertError;
+          } catch {
+            const tempId = crypto.randomUUID();
+            await addToQueue({ table: 'queens', operation: 'insert', data: { id: tempId, ...newQueen, created_at: new Date().toISOString() } });
+          }
+          setQueenModal(false);
+          if (onToast) onToast('New queen recorded');
+          navigateAfterSave();
+        }}
+        onCancel={() => {
+          setQueenModal(false);
+          navigateAfterSave();
+        }}
       />
     </div>
   );
