@@ -17,6 +17,11 @@ const EVENT_TYPES = [
   { value: 'harvest', label: 'Harvest', emoji: '🫙' },
 ];
 
+const EVENT_PLURALS = {
+  inspection: 'inspections', treatment: 'treatments', feed: 'feeds',
+  split: 'splits', loss: 'losses', requeen: 'requeens', harvest: 'harvests',
+};
+
 export default function WalkYard({ user, onToast }) {
   const { yardId } = useParams();
   const navigate = useNavigate();
@@ -155,7 +160,7 @@ export default function WalkYard({ user, onToast }) {
 
     setResults((prev) => {
       const updated = [...prev];
-      updated[currentIndex] = { ...updated[currentIndex], logged: true };
+      updated[currentIndex] = { ...updated[currentIndex], logged: true, type: selectedType };
       return updated;
     });
 
@@ -339,9 +344,22 @@ export default function WalkYard({ user, onToast }) {
   }
 
   if (finished) {
-    const loggedCount = results.filter((r) => r.logged).length;
+    const loggedResults = results.filter((r) => r.logged);
     const skippedCount = results.filter((r) => r.skipped).length;
-    const typeLabel = EVENT_TYPES.find((t) => t.value === selectedType)?.label || 'events';
+
+    // Group logged events by type for accurate breakdown
+    const typeCounts = {};
+    loggedResults.forEach((r) => {
+      const key = r.type || 'event';
+      typeCounts[key] = (typeCounts[key] || 0) + 1;
+    });
+    const summary = Object.entries(typeCounts)
+      .map(([type, count]) => {
+        const label = EVENT_TYPES.find((t) => t.value === type)?.label?.toLowerCase() || type;
+        const plural = EVENT_PLURALS[type] || `${label}s`;
+        return `${count} ${count === 1 ? label : plural}`;
+      })
+      .join(', ');
 
     return (
       <div className="page">
@@ -353,7 +371,7 @@ export default function WalkYard({ user, onToast }) {
             Done!
           </p>
           <p style={{ fontSize: 'var(--font-xl)', marginBottom: 'var(--space-md)' }}>
-            Logged {loggedCount} {loggedCount === 1 ? typeLabel.toLowerCase() : `${typeLabel.toLowerCase()}s`}
+            Logged {summary || '0 events'}
           </p>
           {skippedCount > 0 && (
             <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-xl)' }}>

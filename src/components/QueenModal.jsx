@@ -8,6 +8,13 @@ const MARKING_COLORS = [
   { value: 'blue', bg: '#1e88e5', border: '#1565c0' },
 ];
 
+const COMMON_SOURCES = [
+  { label: 'Bought', value: 'Bought' },
+  { label: 'Raised', value: 'Raised' },
+  { label: 'Gifted', value: 'Gifted' },
+  { label: 'Caught', value: 'Caught' },
+];
+
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
   { value: 'replaced', label: 'Replaced' },
@@ -17,6 +24,11 @@ const STATUS_OPTIONS = [
 export default function QueenModal({ isOpen, queen, onSave, onCancel }) {
   const [markingColor, setMarkingColor] = useState(queen?.marking_color || null);
   const [source, setSource] = useState(queen?.source || '');
+  const [customSource, setCustomSource] = useState(
+    queen?.source && !COMMON_SOURCES.some((s) => s.value === queen.source)
+      ? queen.source
+      : ''
+  );
   const [introductionDate, setIntroductionDate] = useState(queen?.introduction_date || '');
   const [notes, setNotes] = useState(queen?.notes || '');
   const [status, setStatus] = useState(queen?.status || 'active');
@@ -80,11 +92,45 @@ export default function QueenModal({ isOpen, queen, onSave, onCancel }) {
           <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)', fontSize: 'var(--font-body)' }}>
             Source
           </label>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 'var(--space-sm)',
+            marginBottom: 'var(--space-sm)',
+          }}>
+            {COMMON_SOURCES.map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => {
+                  setSource(source === s.value ? '' : s.value);
+                  setCustomSource('');
+                }}
+                style={{
+                  minHeight: 'var(--touch-min)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: source === s.value ? '3px solid var(--color-accent)' : '2px solid var(--color-border)',
+                  backgroundColor: source === s.value ? 'var(--color-accent)' : 'var(--color-surface)',
+                  color: source === s.value ? 'var(--color-accent-text)' : 'var(--color-text)',
+                  fontWeight: 600,
+                  fontSize: 'var(--font-body)',
+                  cursor: 'pointer',
+                  transition: 'all 0.1s ease',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
           <input
             type="text"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            placeholder="e.g. Bought, Raised, Gifted"
+            value={customSource}
+            onChange={(e) => {
+              setCustomSource(e.target.value);
+              setSource(e.target.value.trim());
+            }}
+            placeholder="Or type source..."
           />
         </div>
 

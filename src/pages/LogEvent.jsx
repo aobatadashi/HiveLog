@@ -263,11 +263,11 @@ export default function LogEvent({ user, onToast }) {
                 data: { id: colonyId, status: 'deadout' },
               });
             }
-            navigateAfterSave();
+            if (nextColonyId) { setSavedSuccess(true); } else { navigateAfterSave(); }
           },
           onCancel: () => {
             setConfirmModal(null);
-            navigateAfterSave();
+            if (nextColonyId) { setSavedSuccess(true); } else { navigateAfterSave(); }
           },
         });
         return;
@@ -354,7 +354,7 @@ export default function LogEvent({ user, onToast }) {
         {EVENT_TYPES.map((type) => (
           <button
             key={type.value}
-            onClick={() => { setSelectedType(type.value); setPreSelected(false); }}
+            onClick={() => { setSelectedType(selectedType === type.value ? null : type.value); setPreSelected(false); }}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -378,35 +378,8 @@ export default function LogEvent({ user, onToast }) {
               cursor: 'pointer',
               transition: 'all 0.1s ease',
               WebkitTapHighlightColor: 'transparent',
-              position: 'relative',
             }}
           >
-            {preSelected && selectedType === type.value && (
-              <span
-                role="button"
-                aria-label="Clear pre-selected type"
-                onClick={(e) => { e.stopPropagation(); setSelectedType(null); setPreSelected(false); }}
-                style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(0,0,0,0.3)',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                }}
-              >
-                ×
-              </span>
-            )}
             <span style={{ fontSize: '32px' }}>{type.emoji}</span>
             {type.label}
           </button>
@@ -481,7 +454,7 @@ export default function LogEvent({ user, onToast }) {
               onClick={isBatchMode ? () => setBatchConfirm(true) : handleSave}
               disabled={!selectedType || saving || (selectedType === 'treatment' && !treatmentDetails.product_name)}
             >
-              {saving ? 'Saving...' : isBatchMode ? `Save for ${yardColonies.length} Colonies` : 'Save'}
+              {saving ? 'Saving...' : isBatchMode ? `Save for ${yardColonies.length} ${yardColonies.length === 1 ? 'Colony' : 'Colonies'}` : 'Save'}
             </button>
           )}
         </div>
@@ -524,11 +497,11 @@ export default function LogEvent({ user, onToast }) {
           }
           setQueenModal(false);
           if (onToast) onToast('New queen recorded');
-          navigateAfterSave();
+          if (nextColonyId) { setSavedSuccess(true); } else { navigateAfterSave(); }
         }}
         onCancel={() => {
           setQueenModal(false);
-          navigateAfterSave();
+          if (nextColonyId) { setSavedSuccess(true); } else { navigateAfterSave(); }
         }}
       />
     </div>

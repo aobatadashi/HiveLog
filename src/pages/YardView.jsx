@@ -473,10 +473,10 @@ export default function YardView({ user }) {
             const deadOutCount = colonies.filter((c) => c.status === 'deadout').length;
 
             const chips = [
-              { key: 'all', label: `All (${allCount})` },
-              { key: 'active', label: `Active (${activeCount2})` },
-              { key: 'attention', label: `Needs Attention (${needsAttentionCount})` },
-              { key: 'deadout', label: `Dead Out (${deadOutCount})` },
+              { key: 'all', label: `All ${allCount}` },
+              { key: 'active', label: `Active ${activeCount2}` },
+              { key: 'attention', label: `Attention ${needsAttentionCount}` },
+              { key: 'deadout', label: `Dead ${deadOutCount}` },
             ];
 
             return (
