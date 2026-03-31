@@ -388,9 +388,15 @@ export default function HiveView({ user }) {
             );
           })()}
 
+          {/* TODO: resolve logged_by UUIDs to display names via a profiles table */}
           {(filterType === 'all' ? events : events.filter((e) => e.type === filterType))
             .map((event) => (
-              <EventRow key={event.id} event={event} treatmentDetail={treatmentDetailsMap[event.id]} />
+              <EventRow
+                key={event.id}
+                event={event}
+                treatmentDetail={treatmentDetailsMap[event.id]}
+                loggedByName={event.logged_by ? `user ${event.logged_by.slice(0, 8)}\u2026` : null}
+              />
             ))}
           {hasMore && filterType === 'all' && (
             <button

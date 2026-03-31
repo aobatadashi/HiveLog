@@ -51,10 +51,35 @@ function todayStamp() {
 }
 
 /**
+ * Filter an array of records by date range on a given date field.
+ */
+function filterByDateRange(records, field, fromDate, toDate) {
+  if (!fromDate && !toDate) return records;
+  return records.filter((r) => {
+    const val = r[field];
+    if (!val) return false;
+    const d = val.slice(0, 10); // YYYY-MM-DD portion
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+    return true;
+  });
+}
+
+/**
+ * Build a filename with optional date range.
+ */
+function buildFilename(base, fromDate, toDate) {
+  if (fromDate && toDate) return `${base}-${fromDate}-to-${toDate}.csv`;
+  return `${base}-${todayStamp()}.csv`;
+}
+
+/**
  * Export all events across all yards/colonies.
  * Returns { success: boolean, count: number, offline: boolean }
+ * @param {string} [fromDate] - ISO date string like "2026-01-15"
+ * @param {string} [toDate] - ISO date string like "2026-03-30"
  */
-export async function exportAllEvents() {
+export async function exportAllEvents(fromDate, toDate) {
   let offline = false;
   let yards = [];
   let colonies = [];
@@ -75,11 +100,14 @@ export async function exportAllEvents() {
     if (cErr) throw cErr;
     colonies = cData || [];
 
-    const { data: eData, error: eErr } = await supabase
+    let query = supabase
       .from('events')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100000);
+    if (fromDate) query = query.gte('created_at', fromDate);
+    if (toDate) query = query.lte('created_at', toDate + 'T23:59:59Z');
+    const { data: eData, error: eErr } = await query;
     if (eErr) throw eErr;
     events = eData || [];
   } catch {
@@ -90,7 +118,7 @@ export async function exportAllEvents() {
     const cachedEvents = await cacheGet('events', 'all');
     if (cachedYards) yards = cachedYards;
     if (cachedColonies) colonies = cachedColonies;
-    if (cachedEvents) events = cachedEvents;
+    if (cachedEvents) events = filterByDateRange(cachedEvents, 'created_at', fromDate, toDate);
   }
 
   if (events.length === 0) {
@@ -116,14 +144,16 @@ export async function exportAllEvents() {
   ]);
 
   const csv = arrayToCsv(headers, rows);
-  downloadCsv(csv, `hivelog-events-${todayStamp()}.csv`);
+  downloadCsv(csv, buildFilename('hivelog-events', fromDate, toDate));
   return { success: true, count: events.length, offline };
 }
 
 /**
  * Export colony status summary (all colonies across all yards).
+ * @param {string} [fromDate] - ISO date string like "2026-01-15"
+ * @param {string} [toDate] - ISO date string like "2026-03-30"
  */
-export async function exportColonyStatus() {
+export async function exportColonyStatus(fromDate, toDate) {
   let offline = false;
   let yards = [];
   let colonies = [];
@@ -136,11 +166,16 @@ export async function exportColonyStatus() {
     if (yErr) throw yErr;
     yards = yData || [];
 
-    const { data: cData, error: cErr } = await supabase
+    // Date filter applies to colony created_at (colonies created within the range)
+    // TODO: could also filter by last event date in a future version
+    let query = supabase
       .from('colonies')
       .select('id, yard_id, label, status, created_at')
       .order('created_at', { ascending: true })
       .limit(100000);
+    if (fromDate) query = query.gte('created_at', fromDate);
+    if (toDate) query = query.lte('created_at', toDate + 'T23:59:59Z');
+    const { data: cData, error: cErr } = await query;
     if (cErr) throw cErr;
     colonies = cData || [];
   } catch {
@@ -148,7 +183,7 @@ export async function exportColonyStatus() {
     const cachedYards = await cacheGet('yards', 'all');
     const cachedColonies = await cacheGet('colonies', 'all');
     if (cachedYards) yards = cachedYards;
-    if (cachedColonies) colonies = cachedColonies;
+    if (cachedColonies) colonies = filterByDateRange(cachedColonies, 'created_at', fromDate, toDate);
   }
 
   if (colonies.length === 0) {
@@ -171,15 +206,16 @@ export async function exportColonyStatus() {
   });
 
   const csv = arrayToCsv(headers, rows);
-  downloadCsv(csv, `hivelog-colony-status-${todayStamp()}.csv`);
+  downloadCsv(csv, buildFilename('hivelog-colony-status', fromDate, toDate));
   return { success: true, count: colonies.length, offline };
 }
 
 /**
  * Export treatment events log (for compliance reporting).
- * Will be enhanced in Feature 3 with treatment_details fields.
+ * @param {string} [fromDate] - ISO date string like "2026-01-15"
+ * @param {string} [toDate] - ISO date string like "2026-03-30"
  */
-export async function exportTreatmentLog() {
+export async function exportTreatmentLog(fromDate, toDate) {
   let offline = false;
   let yards = [];
   let colonies = [];
@@ -200,12 +236,15 @@ export async function exportTreatmentLog() {
     if (cErr) throw cErr;
     colonies = cData || [];
 
-    const { data: eData, error: eErr } = await supabase
+    let query = supabase
       .from('events')
       .select('*')
       .eq('type', 'treatment')
       .order('created_at', { ascending: false })
       .limit(100000);
+    if (fromDate) query = query.gte('created_at', fromDate);
+    if (toDate) query = query.lte('created_at', toDate + 'T23:59:59Z');
+    const { data: eData, error: eErr } = await query;
     if (eErr) throw eErr;
     events = eData || [];
   } catch {
@@ -216,7 +255,10 @@ export async function exportTreatmentLog() {
     if (cachedYards) yards = cachedYards;
     if (cachedColonies) colonies = cachedColonies;
     if (cachedEvents) {
-      events = cachedEvents.filter((e) => e.type === 'treatment');
+      events = filterByDateRange(
+        cachedEvents.filter((e) => e.type === 'treatment'),
+        'created_at', fromDate, toDate
+      );
     }
   }
 
@@ -267,6 +309,6 @@ export async function exportTreatmentLog() {
   });
 
   const csv = arrayToCsv(headers, rows);
-  downloadCsv(csv, `hivelog-treatment-log-${todayStamp()}.csv`);
+  downloadCsv(csv, buildFilename('hivelog-treatment-log', fromDate, toDate));
   return { success: true, count: events.length, offline };
 }

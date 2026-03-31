@@ -12,7 +12,7 @@ const TYPE_LABELS = {
   transfer: 'Transfer',
 };
 
-export default function EventRow({ event, treatmentDetail }) {
+export default function EventRow({ event, treatmentDetail, loggedByName }) {
   const [expanded, setExpanded] = useState(false);
 
   const date = new Date(event.created_at).toLocaleDateString(undefined, {
@@ -88,6 +88,11 @@ export default function EventRow({ event, treatmentDetail }) {
         <p style={{ fontSize: 'var(--font-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-xs)' }}>
           {date} at {time}
         </p>
+        {loggedByName && (
+          <p style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+            Logged by {loggedByName}
+          </p>
+        )}
       </div>
     </div>
   );

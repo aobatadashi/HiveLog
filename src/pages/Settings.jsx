@@ -16,6 +16,12 @@ export default function Settings({ user, onSignOut }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(null);
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    return d.toISOString().slice(0, 10);
+  });
+  const [exportTo, setExportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [failedItems, setFailedItems] = useState([]);
   const [confirmDismiss, setConfirmDismiss] = useState(null);
@@ -327,6 +333,26 @@ export default function Settings({ user, onSignOut }) {
         <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)', fontSize: 'var(--font-body)' }}>
           Download your data as CSV files for compliance reporting or backup.
         </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+            <span style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>From</span>
+            <input
+              type="date"
+              value={exportFrom}
+              onChange={(e) => setExportFrom(e.target.value)}
+              style={{ minHeight: 56, fontSize: 'var(--font-body)', padding: 'var(--space-sm) var(--space-md)', borderRadius: 'var(--radius-sm)', border: '2px solid var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', width: '100%' }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+            <span style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>To</span>
+            <input
+              type="date"
+              value={exportTo}
+              onChange={(e) => setExportTo(e.target.value)}
+              style={{ minHeight: 56, fontSize: 'var(--font-body)', padding: 'var(--space-sm) var(--space-md)', borderRadius: 'var(--radius-sm)', border: '2px solid var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', width: '100%' }}
+            />
+          </label>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
           <button
             className="btn btn-export"
@@ -334,7 +360,7 @@ export default function Settings({ user, onSignOut }) {
             onClick={async () => {
               setExporting('events');
               try {
-                const result = await exportAllEvents();
+                const result = await exportAllEvents(exportFrom, exportTo);
                 if (!result.success) {
                   showError('No events to export');
                 } else if (result.offline) {
@@ -354,7 +380,7 @@ export default function Settings({ user, onSignOut }) {
             onClick={async () => {
               setExporting('colonies');
               try {
-                const result = await exportColonyStatus();
+                const result = await exportColonyStatus(exportFrom, exportTo);
                 if (!result.success) {
                   showError('No colonies to export');
                 } else if (result.offline) {
@@ -374,7 +400,7 @@ export default function Settings({ user, onSignOut }) {
             onClick={async () => {
               setExporting('treatments');
               try {
-                const result = await exportTreatmentLog();
+                const result = await exportTreatmentLog(exportFrom, exportTo);
                 if (!result.success) {
                   showError('No treatment records to export');
                 } else if (result.offline) {
