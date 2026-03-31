@@ -13,6 +13,7 @@ export default function Home({ user }) {
   const [newName, setNewName] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [search, setSearch] = useState('');
+  const [filterAttention, setFilterAttention] = useState(false);
   const navigate = useNavigate();
 
   const fetchYards = useCallback(async () => {
@@ -109,12 +110,34 @@ export default function Home({ user }) {
         return;
       }
       await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
+      // Optimistic local update so the yard appears immediately (even offline)
+      const optimisticYard = {
+        ...yardData,
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        colony_count: 0,
+        last_activity: null,
+      };
+      setYards((prev) => {
+        const updated = [optimisticYard, ...prev];
+        cacheSet('yards', 'all', updated);
+        return updated;
+      });
     }
 
     setNewName('');
     setNewLocation('');
     setShowAdd(false);
   }
+
+  const totalColonies = yards.reduce((sum, y) => sum + y.colony_count, 0);
+  const totalYards = yards.length;
+  const now = Date.now();
+  const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+  const attentionYards = yards.filter(
+    (y) => !y.last_activity || (now - new Date(y.last_activity).getTime()) > fourteenDays
+  );
+  const needsAttention = attentionYards.length;
 
   return (
     <div className="page">
@@ -130,6 +153,81 @@ export default function Home({ user }) {
       </div>
 
       {error && <p className="error-msg">{error}</p>}
+
+      {!loading && yards.length > 0 && (
+        <div style={{
+          background: 'var(--color-surface)',
+          boxShadow: 'var(--shadow-card)',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--space-md) var(--space-lg)',
+          marginBottom: 'var(--space-lg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 'var(--space-sm)',
+          flexWrap: 'wrap',
+          fontSize: 'var(--font-body)',
+          fontWeight: 600,
+        }}>
+          <span>{totalColonies.toLocaleString()} colonies</span>
+          <span style={{ color: 'var(--color-text-secondary)' }}>&middot;</span>
+          <span>{totalYards} yards</span>
+          <span style={{ color: 'var(--color-text-secondary)' }}>&middot;</span>
+          {filterAttention ? (
+            <button
+              onClick={() => setFilterAttention(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px 8px',
+                minHeight: '44px',
+                cursor: 'pointer',
+                fontSize: 'var(--font-body)',
+                fontWeight: 600,
+                color: 'var(--color-warning)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 'var(--space-xs)',
+              }}
+              aria-label="Clear attention filter"
+            >
+              Showing {needsAttention} needing attention
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                background: 'var(--color-warning)',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: 700,
+                lineHeight: 1,
+              }}>×</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setFilterAttention(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px 8px',
+                minHeight: '44px',
+                cursor: 'pointer',
+                fontSize: 'var(--font-body)',
+                fontWeight: 600,
+                color: needsAttention > 0 ? 'var(--color-warning)' : 'var(--color-success)',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+              aria-label="Filter yards needing attention"
+            >
+              {needsAttention} need attention
+            </button>
+          )}
+        </div>
+      )}
 
       {!loading && yards.length > 0 && (
         <div className="search-wrap">
@@ -148,14 +246,6 @@ export default function Home({ user }) {
       )}
 
       {(() => {
-        const q = search.toLowerCase().trim();
-        const filtered = q
-          ? yards.filter((y) =>
-              y.name.toLowerCase().includes(q) ||
-              (y.location_note && y.location_note.toLowerCase().includes(q))
-            )
-          : yards;
-
         if (loading) {
           return <div className="loading"><div className="spinner" /></div>;
         }
@@ -167,10 +257,32 @@ export default function Home({ user }) {
             </div>
           );
         }
+
+        let filtered = yards;
+        if (filterAttention) {
+          filtered = filtered.filter(
+            (y) => !y.last_activity || (now - new Date(y.last_activity).getTime()) > fourteenDays
+          );
+        }
+        const q = search.toLowerCase().trim();
+        if (q) {
+          filtered = filtered.filter((y) =>
+            y.name.toLowerCase().includes(q) ||
+            (y.location_note && y.location_note.toLowerCase().includes(q))
+          );
+        }
+
         if (filtered.length === 0) {
           return (
             <div className="empty-state">
-              <p>No yards match &ldquo;{search}&rdquo;</p>
+              <p>
+                {filterAttention && q
+                  ? <>No attention-needed yards match &ldquo;{search}&rdquo;</>
+                  : filterAttention
+                    ? 'No yards need attention right now'
+                    : <>No yards match &ldquo;{search}&rdquo;</>
+                }
+              </p>
             </div>
           );
         }

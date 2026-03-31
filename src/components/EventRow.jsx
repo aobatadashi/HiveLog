@@ -9,6 +9,7 @@ const TYPE_LABELS = {
   loss: 'Loss',
   requeen: 'Requeen',
   harvest: 'Harvest',
+  transfer: 'Transfer',
 };
 
 export default function EventRow({ event, treatmentDetail }) {
@@ -59,7 +60,7 @@ export default function EventRow({ event, treatmentDetail }) {
                 fontSize: 'var(--font-body)',
                 fontWeight: 600,
                 padding: 'var(--space-sm) 0',
-                minHeight: '44px',
+                minHeight: '56px',
                 cursor: 'pointer',
                 minWidth: 'auto',
               }}

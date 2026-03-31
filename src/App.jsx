@@ -9,6 +9,7 @@ import YardView from './pages/YardView.jsx';
 import HiveView from './pages/HiveView.jsx';
 import LogEvent from './pages/LogEvent.jsx';
 import Settings from './pages/Settings.jsx';
+import WalkYard from './pages/WalkYard.jsx';
 
 function Toast({ message, onDone }) {
   useEffect(() => {
@@ -32,7 +33,7 @@ export default function App() {
 
     const showSyncError = (failed) => {
       const count = failed.length;
-      setToast(`${count} ${count === 1 ? 'change' : 'changes'} failed to sync and ${count === 1 ? 'was' : 'were'} discarded`);
+      setToast(`${count} ${count === 1 ? 'change' : 'changes'} failed to sync — review in Settings`);
     };
 
     const cleanup = setupOnlineSync(showSyncToast, showSyncError);
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="/hive/:id" element={<HiveView user={user} />} />
             <Route path="/log/:colonyId" element={<LogEvent user={user} onToast={handleToast} />} />
             <Route path="/log-yard/:yardId" element={<LogEvent user={user} onToast={handleToast} />} />
+            <Route path="/walk/:yardId" element={<WalkYard user={user} onToast={handleToast} />} />
             <Route path="/settings" element={<Settings user={user} onSignOut={signOut} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

@@ -19,6 +19,7 @@ const TYPE_LABELS = {
   loss: 'Loss',
   requeen: 'Requeen',
   harvest: 'Harvest',
+  transfer: 'Transfer',
 };
 
 export default function HiveView({ user }) {
@@ -39,6 +40,9 @@ export default function HiveView({ user }) {
   const [queenModal, setQueenModal] = useState(false);
   const [treatmentDetailsMap, setTreatmentDetailsMap] = useState({});
   const [activeWithdrawal, setActiveWithdrawal] = useState(null);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [yards, setYards] = useState([]);
+  const [transferring, setTransferring] = useState(false);
 
   const fetchEvents = useCallback(async (offset = 0) => {
     const { data, error: eventError } = await supabase
@@ -207,6 +211,55 @@ export default function HiveView({ user }) {
     fetchData();
   }, [fetchData]);
 
+  async function openTransferModal() {
+    try {
+      const { data: yardData } = await supabase
+        .from('yards')
+        .select('id, name')
+        .order('name');
+      setYards((yardData || []).filter((y) => y.id !== colony?.yard_id));
+    } catch {
+      const cached = await cacheGet('yards', 'all');
+      if (cached) {
+        setYards((cached || []).filter((y) => y.id !== colony?.yard_id));
+      }
+    }
+    setShowTransfer(true);
+  }
+
+  async function handleTransfer(destYard) {
+    setTransferring(true);
+    const originYardName = colony?.yards?.name || 'Unknown';
+    const eventData = {
+      id: crypto.randomUUID(),
+      colony_id: id,
+      type: 'transfer',
+      notes: `Transferred from ${originYardName} to ${destYard.name}`,
+      logged_by: user.id,
+    };
+    const updateData = { id, yard_id: destYard.id };
+
+    try {
+      const { error: updateError } = await supabase
+        .from('colonies')
+        .update({ yard_id: destYard.id })
+        .eq('id', id);
+      if (updateError) throw updateError;
+
+      const { error: eventError } = await supabase
+        .from('events')
+        .insert(eventData);
+      if (eventError) throw eventError;
+    } catch {
+      await addToQueue({ table: 'colonies', operation: 'update', data: updateData });
+      await addToQueue({ table: 'events', operation: 'insert', data: eventData });
+    }
+
+    setTransferring(false);
+    setShowTransfer(false);
+    navigate(`/yard/${colony?.yard_id || ''}`, { replace: true });
+  }
+
   const isDeadout = colony?.status === 'deadout';
 
   return (
@@ -270,6 +323,24 @@ export default function HiveView({ user }) {
               withdrawalDays={activeWithdrawal.days}
             />
           )}
+          <button
+            onClick={openTransferModal}
+            style={{
+              marginLeft: 'auto',
+              padding: 'var(--space-sm) var(--space-md)',
+              borderRadius: 'var(--radius-sm)',
+              border: '2px solid var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              fontWeight: 600,
+              fontSize: 'var(--font-body)',
+              cursor: 'pointer',
+              minHeight: 'var(--touch-min)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Move
+          </button>
         </div>
       )}
 
@@ -349,6 +420,7 @@ export default function HiveView({ user }) {
           onClick={() => navigate(`/log/${id}?yard=${colony?.yard_id || ''}`, {
             state: {
               ...(nextColonyId ? { nextColonyId, nextColonyLabel } : {}),
+              ...(location.state?.lastEventType ? { lastEventType: location.state.lastEventType } : {}),
               colonyLabel: colony?.label,
               yardName: colony?.yards?.name,
             },
@@ -375,6 +447,47 @@ export default function HiveView({ user }) {
         onSave={handleQueenSave}
         onCancel={() => setQueenModal(false)}
       />
+
+      {showTransfer && (
+        <div className="modal-overlay" onClick={() => setShowTransfer(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Move to Yard</h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)' }}>
+              Select destination yard for {colony?.label}
+            </p>
+            {yards.length === 0 ? (
+              <p style={{ color: 'var(--color-text-secondary)' }}>No other yards available</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                {yards.map((y) => (
+                  <button
+                    key={y.id}
+                    className="btn btn-secondary"
+                    style={{
+                      width: '100%',
+                      minHeight: 56,
+                      fontSize: 'var(--font-body)',
+                      textAlign: 'left',
+                      justifyContent: 'flex-start',
+                    }}
+                    onClick={() => handleTransfer(y)}
+                    disabled={transferring}
+                  >
+                    {y.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              className="btn btn-secondary"
+              style={{ width: '100%', marginTop: 'var(--space-lg)' }}
+              onClick={() => setShowTransfer(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

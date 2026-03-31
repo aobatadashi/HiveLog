@@ -6,15 +6,15 @@
   --color-surface: #ffffff;
   --color-text: #1a1a1a;
   --color-text-secondary: #4a4a4a;
-  --color-accent: #d4850a;
-  --color-accent-hover: #b8720a;
-  --color-accent-active: #9c6008;
+  --color-accent: #7a5200;
+  --color-accent-hover: #664500;
+  --color-accent-active: #523800;
   --color-accent-text: #ffffff;
   --color-border: #d0d0d0;
   --color-danger: #c62828;
   --color-danger-active: #a31f1f;
   --color-success: #2e7d32;
-  --color-warning: #e65100;
+  --color-warning: #bf4000;
   --color-status-green: #2e7d32;
   --color-status-yellow: #e65100;
   --color-status-red: #c62828;
@@ -469,6 +469,7 @@ textarea {
 .event-badge.loss       { background: #ffebee; color: #c62828; }
 .event-badge.requeen    { background: #fff8e1; color: #f57f17; }
 .event-badge.harvest    { background: #fce4ec; color: #880e4f; }
+.event-badge.transfer   { background: #e0f2f1; color: #00695c; }
 
 /* Error message */
 .error-msg {
@@ -508,8 +509,8 @@ textarea {
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -550,10 +551,10 @@ textarea {
 
 .filter-chip {
   flex-shrink: 0;
-  min-height: 44px;
+  min-height: 56px;
   padding: var(--space-sm) var(--space-md);
-  border-radius: 22px;
-  font-size: 16px;
+  border-radius: 28px;
+  font-size: var(--font-body);
   font-weight: 600;
   border: 2px solid var(--color-border);
   background: transparent;
@@ -579,11 +580,11 @@ textarea {
 /* Today badge */
 .badge-today {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 4px 12px;
+  border-radius: 12px;
   background-color: var(--color-status-green);
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--font-body);
   font-weight: 700;
   vertical-align: middle;
   margin-left: var(--space-sm);
@@ -779,4 +780,54 @@ textarea {
   background-color: var(--color-accent);
   color: var(--color-accent-text);
   border-color: var(--color-accent);
+}
+
+/* Settings — editable inline inputs */
+input[type="text"].editable-input {
+  width: 100%;
+  border: none;
+  border-bottom: 2px dashed var(--color-border);
+  border-radius: 0;
+  font-size: var(--font-body);
+  padding: var(--space-sm);
+  background: transparent;
+  min-height: auto;
+  transition: border-color 0.2s, background-color 0.2s;
+  box-shadow: none;
+}
+
+input[type="text"].editable-input:focus {
+  border: none;
+  border-bottom: 2px solid var(--color-accent);
+  background-color: #f5f0e6;
+}
+
+.editable-input-name {
+  font-size: var(--font-lg);
+  font-weight: 600;
+}
+
+.editable-input-secondary {
+  color: var(--color-text-secondary);
+}
+
+/* Settings — delete buttons */
+.btn-delete-sm {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-size: var(--font-body);
+  font-weight: 600;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: var(--space-sm);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete-sm:active {
+  background-color: #ffebee;
 }

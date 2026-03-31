@@ -23,7 +23,12 @@ export default function LogEvent({ user, onToast }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { nextColonyId, nextColonyLabel, colonyLabel, yardName: stateYardName } = location.state || {};
-  const [selectedType, setSelectedType] = useState(null);
+  const [selectedType, setSelectedType] = useState(() => {
+    return location.state?.lastEventType || localStorage.getItem('hivelog_lastEventType') || null;
+  });
+  const [preSelected, setPreSelected] = useState(() => {
+    return !!(location.state?.lastEventType || localStorage.getItem('hivelog_lastEventType'));
+  });
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -35,6 +40,7 @@ export default function LogEvent({ user, onToast }) {
   const [usingCachedColonies, setUsingCachedColonies] = useState(false);
   const [queenModal, setQueenModal] = useState(false);
   const [treatmentDetails, setTreatmentDetails] = useState({});
+  const [batchConfirm, setBatchConfirm] = useState(false);
 
   const isBatchMode = Boolean(yardId);
   // For single-colony mode, get yardId from query param (for "next hive" nav)
@@ -148,6 +154,7 @@ export default function LogEvent({ user, onToast }) {
       }
 
       setSaving(false);
+      localStorage.setItem('hivelog_lastEventType', selectedType);
       const typeLabel = EVENT_TYPES.find((t) => t.value === selectedType)?.label || selectedType;
       if (onToast) onToast(`Logged ${typeLabel} on ${eventsToInsert.length} colonies`);
       navigate(`/yard/${yardId}`, { replace: true });
@@ -202,6 +209,8 @@ export default function LogEvent({ user, onToast }) {
       }
 
       const typeLabel = EVENT_TYPES.find((t) => t.value === selectedType)?.label || selectedType;
+
+      localStorage.setItem('hivelog_lastEventType', selectedType);
 
       // If requeen event (single colony), prompt to record new queen
       if (selectedType === 'requeen') {
@@ -279,7 +288,7 @@ export default function LogEvent({ user, onToast }) {
 
   function navigateAfterSave() {
     if (nextColonyId) {
-      navigate(`/hive/${nextColonyId}`, { replace: true });
+      navigate(`/hive/${nextColonyId}`, { replace: true, state: { lastEventType: selectedType } });
     } else if (parentYardId) {
       navigate(`/yard/${parentYardId}`, { replace: true });
     } else {
@@ -345,7 +354,7 @@ export default function LogEvent({ user, onToast }) {
         {EVENT_TYPES.map((type) => (
           <button
             key={type.value}
-            onClick={() => setSelectedType(type.value)}
+            onClick={() => { setSelectedType(type.value); setPreSelected(false); }}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -369,8 +378,35 @@ export default function LogEvent({ user, onToast }) {
               cursor: 'pointer',
               transition: 'all 0.1s ease',
               WebkitTapHighlightColor: 'transparent',
+              position: 'relative',
             }}
           >
+            {preSelected && selectedType === type.value && (
+              <span
+                role="button"
+                aria-label="Clear pre-selected type"
+                onClick={(e) => { e.stopPropagation(); setSelectedType(null); setPreSelected(false); }}
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                }}
+              >
+                ×
+              </span>
+            )}
             <span style={{ fontSize: '32px' }}>{type.emoji}</span>
             {type.label}
           </button>
@@ -395,43 +431,61 @@ export default function LogEvent({ user, onToast }) {
 
       {error && <p className="error-msg">{error}</p>}
 
-      {savedSuccess ? (
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
+      {savedSuccess && (
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
           <p style={{ fontSize: 'var(--font-3xl)', fontWeight: 700, marginBottom: 'var(--space-lg)', color: 'var(--color-status-green)' }}>
             Saved!
           </p>
-          {nextColonyId && (
+        </div>
+      )}
+
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 'var(--space-md) var(--space-lg)',
+        background: 'linear-gradient(transparent, var(--color-bg) 20%)',
+        paddingTop: 'var(--space-xl)',
+      }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          {savedSuccess ? (
+            <>
+              {nextColonyId && (
+                <button
+                  className="next-colony-btn"
+                  style={{ width: '100%', marginBottom: 'var(--space-md)' }}
+                  onClick={() => navigate(`/hive/${nextColonyId}`, { replace: true, state: { lastEventType: selectedType } })}
+                >
+                  Next: {nextColonyLabel || 'Next Colony'} →
+                </button>
+              )}
+              <button
+                className="btn btn-secondary"
+                style={{ width: '100%' }}
+                onClick={() => {
+                  if (parentYardId) {
+                    navigate(`/yard/${parentYardId}`, { replace: true });
+                  } else {
+                    navigate(`/hive/${colonyId}`, { replace: true });
+                  }
+                }}
+              >
+                Back to Yard
+              </button>
+            </>
+          ) : (
             <button
-              className="next-colony-btn"
-              onClick={() => navigate(`/hive/${nextColonyId}`, { replace: true })}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '72px', fontSize: 'var(--font-xl)' }}
+              onClick={isBatchMode ? () => setBatchConfirm(true) : handleSave}
+              disabled={!selectedType || saving || (selectedType === 'treatment' && !treatmentDetails.product_name)}
             >
-              Next: {nextColonyLabel || 'Next Colony'} →
+              {saving ? 'Saving...' : isBatchMode ? `Save for ${yardColonies.length} Colonies` : 'Save'}
             </button>
           )}
-          <button
-            className="btn btn-secondary"
-            style={{ width: '100%', marginTop: 'var(--space-md)' }}
-            onClick={() => {
-              if (parentYardId) {
-                navigate(`/yard/${parentYardId}`, { replace: true });
-              } else {
-                navigate(`/hive/${colonyId}`, { replace: true });
-              }
-            }}
-          >
-            Back to Yard
-          </button>
         </div>
-      ) : (
-        <button
-          className="btn btn-primary"
-          style={{ width: '100%', height: '72px', fontSize: 'var(--font-xl)' }}
-          onClick={handleSave}
-          disabled={!selectedType || saving || (selectedType === 'treatment' && !treatmentDetails.product_name)}
-        >
-          {saving ? 'Saving...' : isBatchMode ? `Save for ${yardColonies.length} Colonies` : 'Save'}
-        </button>
-      )}
+      </div>
 
       <ConfirmModal
         isOpen={!!confirmModal}
@@ -442,6 +496,16 @@ export default function LogEvent({ user, onToast }) {
         onConfirm={confirmModal?.onConfirm || (() => {})}
         onCancel={confirmModal?.onCancel || (() => {})}
         danger={confirmModal?.danger || false}
+      />
+
+      <ConfirmModal
+        isOpen={batchConfirm}
+        title={`Log ${EVENT_TYPES.find((t) => t.value === selectedType)?.label || selectedType} on ${yardColonies.length} colonies?`}
+        message={`This will create ${yardColonies.length} event records${yardName ? ` in ${yardName}` : ''}.`}
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+        onConfirm={() => { setBatchConfirm(false); handleSave(); }}
+        onCancel={() => setBatchConfirm(false)}
       />
 
       <QueenModal

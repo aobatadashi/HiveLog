@@ -25,7 +25,7 @@ export default function WithdrawalBadge({ treatmentDate, withdrawalDays, compact
         backgroundColor: '#e8f5e9',
         color: 'var(--color-status-green)',
         fontWeight: 600,
-        fontSize: '14px',
+        fontSize: 'var(--font-body)',
       }}>
         ✓ Clear
       </span>
@@ -65,7 +65,7 @@ export default function WithdrawalBadge({ treatmentDate, withdrawalDays, compact
       backgroundColor: '#ffebee',
       color: 'var(--color-status-red)',
       fontWeight: 600,
-      fontSize: '14px',
+      fontSize: 'var(--font-body)',
     }}>
       ⏳ {daysLeft}d left
     </span>

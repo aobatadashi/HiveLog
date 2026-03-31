@@ -32,7 +32,7 @@ export default function YardCard({ yard }) {
           {yard.location_note && (
             <p style={{
               color: 'var(--color-text-secondary)',
-              fontSize: '16px',
+              fontSize: 'var(--font-body)',
               marginTop: 'var(--space-xs)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',

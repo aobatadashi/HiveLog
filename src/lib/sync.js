@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient.js';
-import { getAllQueued, removeFromQueue } from './offlineQueue.js';
+import { getAllQueued, removeFromQueue, addToFailed } from './offlineQueue.js';
 
 let retryDelay = 1000;
 const MAX_RETRY_DELAY = 60000;
@@ -39,8 +39,9 @@ export async function drainQueue() {
         const isPermanent = status >= 400 && status < 500
           && status !== 408 && status !== 429;
         if (isPermanent) {
-          failed.push({ table, operation, error: result.error.message });
+          await addToFailed(item, result.error.message);
           await removeFromQueue(item.id);
+          failed.push({ table, operation, error: result.error.message });
           continue;
         }
         // Transient error — stop and retry with backoff
