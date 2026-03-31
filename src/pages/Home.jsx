@@ -17,6 +17,19 @@ export default function Home({ user }) {
   const navigate = useNavigate();
 
   const fetchYards = useCallback(async () => {
+    // Stale-while-revalidate: show cached data immediately if available
+    let hadCache = false;
+    try {
+      const cached = await cacheGet('yards', 'all');
+      if (cached) {
+        setYards(cached);
+        setLoading(false);
+        hadCache = true;
+      }
+    } catch {
+      // Cache read failed — continue to network fetch
+    }
+
     try {
       // Single query: yards with embedded colony IDs for counting
       const { data: yardData, error: yardError } = await supabase
@@ -27,36 +40,22 @@ export default function Home({ user }) {
 
       if (yardError) throw yardError;
 
-      // Fetch last activity per yard by paginating through recent events.
-      // Supabase caps at 1000 rows per request, so we page until all yards
-      // are covered or we run out of events.
+      // One query for recent events instead of N+1 pagination loop
       const lastActivityByYard = {};
-      const yardCount = (yardData || []).length;
+      if ((yardData || []).length > 0) {
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: recentEvents } = await supabase
+          .from('events')
+          .select('colony_id, created_at, colonies!inner(yard_id)')
+          .gte('created_at', ninetyDaysAgo)
+          .order('created_at', { ascending: false })
+          .limit(1000);
 
-      if (yardCount > 0) {
-        const PAGE = 1000;
-        let offset = 0;
-        const maxPages = 20; // Safety cap: 20K events max
-        for (let page = 0; page < maxPages; page++) {
-          const { data: recentEvents } = await supabase
-            .from('events')
-            .select('colony_id, created_at, colonies!inner(yard_id)')
-            .order('created_at', { ascending: false })
-            .range(offset, offset + PAGE - 1);
-
-          if (!recentEvents || recentEvents.length === 0) break;
-
-          for (const evt of recentEvents) {
-            const yardId = evt.colonies?.yard_id;
-            if (yardId && !lastActivityByYard[yardId]) {
-              lastActivityByYard[yardId] = evt.created_at;
-            }
+        for (const evt of (recentEvents || [])) {
+          const yardId = evt.colonies?.yard_id;
+          if (yardId && !lastActivityByYard[yardId]) {
+            lastActivityByYard[yardId] = evt.created_at;
           }
-
-          // Stop if all yards are covered or we got fewer rows than requested
-          if (Object.keys(lastActivityByYard).length >= yardCount) break;
-          if (recentEvents.length < PAGE) break;
-          offset += PAGE;
         }
       }
 
@@ -69,13 +68,16 @@ export default function Home({ user }) {
       setYards(yardsWithStats);
       await cacheSet('yards', 'all', yardsWithStats);
     } catch {
-      // Try to load from cache
-      const cached = await cacheGet('yards', 'all');
-      if (cached) {
-        setYards(cached);
-      } else {
-        setError('Failed to load yards');
+      if (!hadCache) {
+        // Only show error if we have nothing to display
+        const cached = await cacheGet('yards', 'all');
+        if (cached) {
+          setYards(cached);
+        } else {
+          setError('Failed to load yards');
+        }
       }
+      // If hadCache is true, silently keep stale data
     }
     setLoading(false);
   }, []);
@@ -169,9 +171,9 @@ export default function Home({ user }) {
           fontSize: 'var(--font-body)',
           fontWeight: 600,
         }}>
-          <span>{totalColonies.toLocaleString()} colonies</span>
+          <span>{totalColonies.toLocaleString()} {totalColonies === 1 ? 'colony' : 'colonies'}</span>
           <span style={{ color: 'var(--color-text-secondary)' }}>&middot;</span>
-          <span>{totalYards} yards</span>
+          <span>{totalYards} {totalYards === 1 ? 'yard' : 'yards'}</span>
           <span style={{ color: 'var(--color-text-secondary)' }}>&middot;</span>
           {filterAttention ? (
             <button
@@ -191,7 +193,7 @@ export default function Home({ user }) {
               }}
               aria-label="Clear attention filter"
             >
-              Showing {needsAttention} needing attention
+              Showing {needsAttention} {needsAttention === 1 ? 'needs' : 'needing'} attention
               <span style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -223,7 +225,7 @@ export default function Home({ user }) {
               }}
               aria-label="Filter yards needing attention"
             >
-              {needsAttention} need attention
+              {needsAttention} {needsAttention === 1 ? 'needs' : 'need'} attention
             </button>
           )}
         </div>

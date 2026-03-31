@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getQueueCount, getFailedCount } from '../lib/offlineQueue.js';
 
@@ -7,10 +7,33 @@ export default function OfflineBanner() {
   const [offline, setOffline] = useState(!navigator.onLine);
   const [queueCount, setQueueCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const timerRef = useRef(null);
+  const cancelledRef = useRef(false);
+
+  const poll = useCallback(async () => {
+    let q = 0;
+    let f = 0;
+    try {
+      q = await getQueueCount();
+      if (!cancelledRef.current) setQueueCount(q);
+    } catch {
+      // IndexedDB may be unavailable
+    }
+    try {
+      f = await getFailedCount();
+      if (!cancelledRef.current) setFailedCount(f);
+    } catch {
+      // IndexedDB may be unavailable
+    }
+    return { q, f };
+  }, []);
 
   useEffect(() => {
     const goOffline = () => setOffline(true);
-    const goOnline = () => setOffline(false);
+    const goOnline = () => {
+      setOffline(false);
+      poll(); // immediate re-poll on reconnect
+    };
 
     window.addEventListener('offline', goOffline);
     window.addEventListener('online', goOnline);
@@ -19,34 +42,29 @@ export default function OfflineBanner() {
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('online', goOnline);
     };
-  }, []);
+  }, [poll]);
 
   useEffect(() => {
-    let cancelled = false;
+    cancelledRef.current = false;
 
-    async function poll() {
-      try {
-        const count = await getQueueCount();
-        if (!cancelled) setQueueCount(count);
-      } catch {
-        // IndexedDB may be unavailable
-      }
-      try {
-        const fCount = await getFailedCount();
-        if (!cancelled) setFailedCount(fCount);
-      } catch {
-        // IndexedDB may be unavailable
-      }
+    function schedulePoll(delay) {
+      timerRef.current = setTimeout(async () => {
+        const { q, f } = await poll();
+        if (!cancelledRef.current) {
+          const nextDelay = (q === 0 && f === 0) ? 60000 : 30000;
+          schedulePoll(nextDelay);
+        }
+      }, delay);
     }
 
-    poll();
-    const interval = setInterval(poll, 5000);
+    poll(); // initial poll
+    schedulePoll(30000);
 
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      cancelledRef.current = true;
+      clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [poll]);
 
   const isSyncing = !offline && queueCount > 0;
   const showOffline = offline || queueCount > 0;
