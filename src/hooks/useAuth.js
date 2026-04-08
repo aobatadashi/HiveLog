@@ -13,9 +13,12 @@ export function useAuth() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setUser(session?.user ?? null);
         setLoading(false);
+        if (event === 'SIGNED_IN') {
+          window.location.hash = '#/';
+        }
       }
     );
 
@@ -27,6 +30,7 @@ export function useAuth() {
     localStorage.removeItem('hivelog_lastEventType');
     localStorage.removeItem('hivelog_colonySort');
     await cacheClear();
+    window.location.hash = '#/';
     await supabase.auth.signOut();
     setUser(null);
   }, []);
