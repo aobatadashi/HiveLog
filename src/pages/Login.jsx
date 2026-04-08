@@ -37,7 +37,6 @@ export default function Login() {
     if (err) setError(err.message === 'Invalid login credentials'
       ? 'Wrong email or password'
       : err.message);
-    else window.location.hash = '#/';
     setLoading(false);
   }
 
@@ -52,8 +51,6 @@ export default function Login() {
     const { error: err } = await supabase.auth.signUp({ email, password });
     if (err) {
       setError(err.message);
-    } else {
-      window.location.hash = '#/';
     }
     setLoading(false);
   }

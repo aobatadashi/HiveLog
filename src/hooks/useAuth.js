@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient.js';
 import { cacheClear } from '../lib/cache.js';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const signInRedirectNeeded = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -13,13 +14,24 @@ export function useAuth() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        if (event === 'SIGNED_IN') {
+          signInRedirectNeeded.current = true;
+        }
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  const consumeSignInRedirect = useCallback(() => {
+    if (signInRedirectNeeded.current) {
+      signInRedirectNeeded.current = false;
+      return true;
+    }
+    return false;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -32,5 +44,5 @@ export function useAuth() {
     setUser(null);
   }, []);
 
-  return { user, loading, signOut };
+  return { user, loading, signOut, consumeSignInRedirect };
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.js';
 import { setupOnlineSync } from './lib/sync.js';
 import OfflineBanner from './components/OfflineBanner.jsx';
@@ -21,8 +21,46 @@ function Toast({ message, onDone }) {
   return <div className="toast">{message}</div>;
 }
 
+function AppRoutes({ user, signOut, handleToast, toast, setToast, consumeSignInRedirect }) {
+  const navigate = useNavigate();
+
+  // Redirect to Home on fresh sign-in (not session restore).
+  // useLayoutEffect fires before paint so user never sees the wrong page.
+  useLayoutEffect(() => {
+    if (user && consumeSignInRedirect()) {
+      navigate('/', { replace: true });
+    }
+  }, [user, consumeSignInRedirect, navigate]);
+
+  return (
+    <>
+      <OfflineBanner />
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      <Routes>
+        {user ? (
+          <>
+            <Route path="/" element={<Home user={user} />} />
+            <Route path="/yard/:id" element={<YardView user={user} />} />
+            <Route path="/hive/:id" element={<HiveView user={user} />} />
+            <Route path="/log/:colonyId" element={<LogEvent user={user} onToast={handleToast} />} />
+            <Route path="/log-yard/:yardId" element={<LogEvent user={user} onToast={handleToast} />} />
+            <Route path="/yard-log/:yardId" element={<LogYardEvent user={user} onToast={handleToast} />} />
+            <Route path="/walk/:yardId" element={<WalkYard user={user} onToast={handleToast} />} />
+            <Route path="/settings" element={<Settings user={user} onSignOut={signOut} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        ) : (
+          <>
+            <Route path="*" element={<Login />} />
+          </>
+        )}
+      </Routes>
+    </>
+  );
+}
+
 export default function App() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, consumeSignInRedirect } = useAuth();
   const [toast, setToast] = useState(null);
 
   const handleToast = useCallback((msg) => setToast(msg), []);
@@ -54,27 +92,14 @@ export default function App() {
 
   return (
     <HashRouter>
-      <OfflineBanner />
-      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
-      <Routes>
-        {user ? (
-          <>
-            <Route path="/" element={<Home user={user} />} />
-            <Route path="/yard/:id" element={<YardView user={user} />} />
-            <Route path="/hive/:id" element={<HiveView user={user} />} />
-            <Route path="/log/:colonyId" element={<LogEvent user={user} onToast={handleToast} />} />
-            <Route path="/log-yard/:yardId" element={<LogEvent user={user} onToast={handleToast} />} />
-            <Route path="/yard-log/:yardId" element={<LogYardEvent user={user} onToast={handleToast} />} />
-            <Route path="/walk/:yardId" element={<WalkYard user={user} onToast={handleToast} />} />
-            <Route path="/settings" element={<Settings user={user} onSignOut={signOut} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        ) : (
-          <>
-            <Route path="*" element={<Login />} />
-          </>
-        )}
-      </Routes>
+      <AppRoutes
+        user={user}
+        signOut={signOut}
+        handleToast={handleToast}
+        toast={toast}
+        setToast={setToast}
+        consumeSignInRedirect={consumeSignInRedirect}
+      />
     </HashRouter>
   );
 }
