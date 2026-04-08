@@ -41,7 +41,7 @@ export default function Home({ user }) {
 
       if (yardError) throw yardError;
 
-      // One query for recent events instead of N+1 pagination loop
+      // One query for recent colony events + one for yard events
       const lastActivityByYard = {};
       if ((yardData || []).length > 0) {
         const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
@@ -56,6 +56,21 @@ export default function Home({ user }) {
           const yardId = evt.colonies?.yard_id;
           if (yardId && !lastActivityByYard[yardId]) {
             lastActivityByYard[yardId] = evt.created_at;
+          }
+        }
+
+        // Also check yard-level events for bulk yards
+        const { data: recentYardEvents } = await supabase
+          .from('yard_events')
+          .select('yard_id, created_at')
+          .gte('created_at', ninetyDaysAgo)
+          .order('created_at', { ascending: false })
+          .limit(1000);
+
+        for (const evt of (recentYardEvents || [])) {
+          const existing = lastActivityByYard[evt.yard_id];
+          if (!existing || evt.created_at > existing) {
+            lastActivityByYard[evt.yard_id] = evt.created_at;
           }
         }
       }
