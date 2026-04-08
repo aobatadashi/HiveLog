@@ -5,6 +5,7 @@ import { addToQueue } from '../lib/offlineQueue.js';
 import { cacheSet, cacheGet } from '../lib/cache.js';
 import YardCard from '../components/YardCard.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 
 export default function Home({ user }) {
   const [yards, setYards] = useState([]);
@@ -16,6 +17,7 @@ export default function Home({ user }) {
   const [newHiveCount, setNewHiveCount] = useState('');
   const [search, setSearch] = useState('');
   const [filterAttention, setFilterAttention] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
   const navigate = useNavigate();
 
   const fetchYards = useCallback(async () => {
@@ -115,6 +117,7 @@ export default function Home({ user }) {
       hive_count: hiveCount,
     };
 
+    let createdId = null;
     try {
       const { data, error: insertError } = await supabase
         .from('yards')
@@ -124,6 +127,7 @@ export default function Home({ user }) {
 
       if (insertError) throw insertError;
 
+      createdId = data.id;
       setYards((prev) => [{ ...data, colony_count: 0, last_activity: null, hive_count: data.hive_count || 0 }, ...prev]);
     } catch (err) {
       if (err?.code === '23505') {
@@ -131,7 +135,6 @@ export default function Home({ user }) {
         return;
       }
       await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
-      // Optimistic local update so the yard appears immediately (even offline)
       const optimisticYard = {
         ...yardData,
         id: crypto.randomUUID(),
@@ -140,6 +143,7 @@ export default function Home({ user }) {
         hive_count: hiveCount,
         last_activity: null,
       };
+      createdId = optimisticYard.id;
       setYards((prev) => {
         const updated = [optimisticYard, ...prev];
         cacheSet('yards', 'all', updated);
@@ -151,6 +155,34 @@ export default function Home({ user }) {
     setNewLocation('');
     setNewHiveCount('');
     setShowAdd(false);
+    if (createdId) navigate(`/yard/${createdId}`);
+  }
+
+  function handleDeleteYard(yard) {
+    setConfirmModal({
+      title: 'Delete Yard?',
+      message: `This will permanently delete "${yard.name}" and all its colonies, events, and yard log entries.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const { error: delErr } = await supabase
+            .from('yards')
+            .delete()
+            .eq('id', yard.id);
+          if (delErr) throw delErr;
+        } catch {
+          await addToQueue({ table: 'yards', operation: 'delete', data: { id: yard.id } });
+        }
+        setYards((prev) => {
+          const updated = prev.filter((y) => y.id !== yard.id);
+          cacheSet('yards', 'all', updated);
+          return updated;
+        });
+      },
+      onCancel: () => setConfirmModal(null),
+    });
   }
 
   const totalHives = yards.reduce((sum, y) => sum + Math.max(y.hive_count || 0, y.colony_count || 0), 0);
@@ -281,6 +313,7 @@ export default function Home({ user }) {
                 onComplete={(createdYard) => {
                   if (createdYard) {
                     setYards([createdYard]);
+                    navigate(`/yard/${createdYard.id}`);
                   }
                 }}
               />
@@ -322,7 +355,7 @@ export default function Home({ user }) {
             </div>
           );
         }
-        return filtered.map((yard) => <YardCard key={yard.id} yard={yard} />);
+        return filtered.map((yard) => <YardCard key={yard.id} yard={yard} onDelete={handleDeleteYard} />);
       })()}
 
       <button className="fab" onClick={() => setShowAdd(true)} aria-label="Add yard">
@@ -378,6 +411,17 @@ export default function Home({ user }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title || ''}
+        message={confirmModal?.message || ''}
+        confirmLabel={confirmModal?.confirmLabel || 'Confirm'}
+        cancelLabel="Cancel"
+        onConfirm={confirmModal?.onConfirm || (() => {})}
+        onCancel={confirmModal?.onCancel || (() => {})}
+        danger={confirmModal?.danger || false}
+      />
     </div>
   );
 }

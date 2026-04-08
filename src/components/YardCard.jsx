@@ -24,7 +24,7 @@ function getHiveDisplay(yard) {
   return 'No hives yet';
 }
 
-export default function YardCard({ yard }) {
+export default function YardCard({ yard, onDelete }) {
   const navigate = useNavigate();
 
   const lastActivity = yard.last_activity
@@ -65,9 +65,34 @@ export default function YardCard({ yard }) {
             </p>
           )}
         </div>
-        <span style={{ fontSize: 'var(--font-xl)', color: 'var(--color-text-secondary)', marginLeft: 'var(--space-md)' }}>
-          ›
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginLeft: 'var(--space-md)' }}>
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(yard); }}
+              style={{
+                background: 'none',
+                border: '2px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--color-danger, #c62828)',
+                fontSize: 'var(--font-body)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                minWidth: 44,
+                minHeight: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+              aria-label={`Delete ${yard.name}`}
+            >
+              ✕
+            </button>
+          )}
+          <span style={{ fontSize: 'var(--font-xl)', color: 'var(--color-text-secondary)' }}>
+            ›
+          </span>
+        </div>
       </div>
     </div>
   );
