@@ -105,7 +105,7 @@ export default function TreatmentForm({ value, onChange }) {
             type="button"
             onClick={() => update('application_method', value?.application_method === method ? null : method)}
             style={{
-              minHeight: 44,
+              minHeight: 56,
               padding: 'var(--space-sm) var(--space-md)',
               borderRadius: 'var(--radius-sm)',
               border: value?.application_method === method ? '3px solid var(--color-accent)' : '2px solid var(--color-border)',

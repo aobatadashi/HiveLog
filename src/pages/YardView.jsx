@@ -538,7 +538,7 @@ export default function YardView({ user }) {
                 }}
                 style={{
                   flex: 1,
-                  minHeight: 44,
+                  minHeight: 56,
                   padding: 'var(--space-sm)',
                   borderRadius: 'var(--radius-sm)',
                   border: sortBy === opt.key

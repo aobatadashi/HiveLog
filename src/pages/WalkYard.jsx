@@ -521,7 +521,7 @@ export default function WalkYard({ user, onToast }) {
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ minWidth: 'auto', minHeight: 44, padding: 'var(--space-sm) var(--space-md)', fontSize: 'var(--font-body)' }}
+                style={{ minWidth: 'auto', minHeight: 56, padding: 'var(--space-sm) var(--space-md)', fontSize: 'var(--font-body)' }}
                 onClick={() => setShowTreatmentForm(true)}
               >
                 Change

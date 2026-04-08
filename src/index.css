@@ -32,6 +32,7 @@
   --space-2xl: 48px;
 
   /* Font sizes — WCAG AAA minimum */
+  --font-sm: 16px;
   --font-body: 18px;
   --font-lg: 20px;
   --font-xl: 24px;
