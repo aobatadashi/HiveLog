@@ -197,24 +197,33 @@ export default function YardView({ user }) {
       if (insertError) throw insertError;
 
       setColonies((prev) => [...prev, { ...data, last_event: null }]);
-    } catch {
-      await addToQueue({ table: 'colonies', operation: 'insert', data: colonyData });
-      // Optimistic local update so the colony appears immediately (even offline)
-      const optimisticColony = {
-        ...colonyData,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-        last_event: null,
-      };
-      setColonies((prev) => {
-        const updated = [...prev, optimisticColony];
-        cacheSet('colonies', id, { yard, colonies: updated });
-        return updated;
-      });
+    } catch (err) {
+      if (err?.code === '23505') {
+        setError('A colony with that label already exists in this yard');
+        return;
+      }
+      if (!navigator.onLine) {
+        await addToQueue({ table: 'colonies', operation: 'insert', data: colonyData });
+        const optimisticColony = {
+          ...colonyData,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          last_event: null,
+        };
+        setColonies((prev) => {
+          const updated = [...prev, optimisticColony];
+          cacheSet('colonies', id, { yard, colonies: updated });
+          return updated;
+        });
+      } else {
+        setError(err?.message || 'Failed to add colony');
+        return;
+      }
     }
 
     setNewLabel('');
     setShowAdd(false);
+    setError('');
   }
 
   async function handleBatchAdd(e) {
@@ -244,28 +253,34 @@ export default function YardView({ user }) {
 
       const newColonies = (data || []).map((c) => ({ ...c, last_event: null }));
       setColonies((prev) => [...prev, ...newColonies]);
-    } catch {
-      for (const col of coloniesToInsert) {
-        await addToQueue({ table: 'colonies', operation: 'insert', data: col });
+    } catch (err) {
+      if (!navigator.onLine) {
+        for (const col of coloniesToInsert) {
+          await addToQueue({ table: 'colonies', operation: 'insert', data: col });
+        }
+        const optimisticColonies = coloniesToInsert.map((col) => ({
+          ...col,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          last_event: null,
+        }));
+        setColonies((prev) => {
+          const updated = [...prev, ...optimisticColonies];
+          cacheSet('colonies', id, { yard, colonies: updated });
+          return updated;
+        });
+      } else {
+        setError(err?.message || 'Failed to add colonies');
+        setAddingBatch(false);
+        return;
       }
-      // Optimistic local update for batch add while offline
-      const optimisticColonies = coloniesToInsert.map((col) => ({
-        ...col,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-        last_event: null,
-      }));
-      setColonies((prev) => {
-        const updated = [...prev, ...optimisticColonies];
-        cacheSet('colonies', id, { yard, colonies: updated });
-        return updated;
-      });
     }
 
     setAddingBatch(false);
     setBatchPrefix('');
     setBatchCount('');
     setShowAdd(false);
+    setError('');
   }
 
   function closeModal() {
@@ -1020,8 +1035,9 @@ export default function YardView({ user }) {
                     Will create: {batchPrefix.trim()}001 … {batchPrefix.trim()}{String(Math.min(parseInt(batchCount, 10), 200)).padStart(3, '0')}
                   </p>
                 )}
+                {error && <p className="error-msg">{error}</p>}
                 <div className="btn-row">
-                  <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                  <button type="button" className="btn btn-secondary" onClick={() => { closeModal(); setError(''); }}>
                     Cancel
                   </button>
                   <button
@@ -1040,13 +1056,14 @@ export default function YardView({ user }) {
                   <input
                     type="text"
                     value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
+                    onChange={(e) => { setNewLabel(e.target.value); setError(''); }}
                     placeholder='e.g., Hive 12'
                     autoFocus
                   />
                 </div>
+                {error && <p className="error-msg">{error}</p>}
                 <div className="btn-row">
-                  <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                  <button type="button" className="btn btn-secondary" onClick={() => { closeModal(); setError(''); }}>
                     Cancel
                   </button>
                   <button type="submit" className="btn btn-primary" disabled={!newLabel.trim()}>
