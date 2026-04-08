@@ -37,6 +37,7 @@ export default function Login() {
     if (err) setError(err.message === 'Invalid login credentials'
       ? 'Wrong email or password'
       : err.message);
+    else window.location.hash = '#/';
     setLoading(false);
   }
 
@@ -52,10 +53,7 @@ export default function Login() {
     if (err) {
       setError(err.message);
     } else {
-      // Supabase may auto-confirm or send a confirmation email depending on project settings.
-      // If email confirmation is disabled in Supabase → Auth → Settings, the user is
-      // logged in immediately. Otherwise show a helpful message.
-      setError('');
+      window.location.hash = '#/';
     }
     setLoading(false);
   }
