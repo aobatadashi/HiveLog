@@ -91,7 +91,7 @@ CREATE POLICY "Users can delete colonies in their yards"
 CREATE TABLE events (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   colony_id   UUID NOT NULL REFERENCES colonies(id) ON DELETE CASCADE,
-  type        TEXT NOT NULL CHECK (type IN ('inspection', 'treatment', 'feed', 'split', 'loss', 'requeen', 'harvest', 'transfer')),
+  type        TEXT NOT NULL CHECK (type IN ('inspection', 'treatment', 'feed', 'split', 'loss', 'requeen', 'harvest', 'transfer', 'mite', 'swarm', 'queenless')),
   notes       TEXT,
   logged_by   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()

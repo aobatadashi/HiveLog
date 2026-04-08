@@ -15,6 +15,9 @@ const EVENT_TYPES = [
   { value: 'loss', label: 'Loss', emoji: '💀' },
   { value: 'requeen', label: 'Requeen', emoji: '👑' },
   { value: 'harvest', label: 'Harvest', emoji: '🫙' },
+  { value: 'mite', label: 'Mite Check', emoji: '🐛' },
+  { value: 'swarm', label: 'Swarm', emoji: '🐝' },
+  { value: 'queenless', label: 'Queenless', emoji: '❌' },
 ];
 
 export default function LogEvent({ user, onToast }) {

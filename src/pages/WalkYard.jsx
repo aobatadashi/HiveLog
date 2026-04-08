@@ -15,11 +15,15 @@ const EVENT_TYPES = [
   { value: 'loss', label: 'Loss', emoji: '💀' },
   { value: 'requeen', label: 'Requeen', emoji: '👑' },
   { value: 'harvest', label: 'Harvest', emoji: '🫙' },
+  { value: 'mite', label: 'Mite Check', emoji: '🐛' },
+  { value: 'swarm', label: 'Swarm', emoji: '🐝' },
+  { value: 'queenless', label: 'Queenless', emoji: '❌' },
 ];
 
 const EVENT_PLURALS = {
   inspection: 'inspections', treatment: 'treatments', feed: 'feeds',
   split: 'splits', loss: 'losses', requeen: 'requeens', harvest: 'harvests',
+  mite: 'mite checks', swarm: 'swarms', queenless: 'queenless',
 };
 
 export default function WalkYard({ user, onToast }) {

@@ -20,6 +20,9 @@ const TYPE_LABELS = {
   requeen: 'Requeen',
   harvest: 'Harvest',
   transfer: 'Transfer',
+  mite: 'Mite Check',
+  swarm: 'Swarm',
+  queenless: 'Queenless',
 };
 
 export default function HiveView({ user }) {
