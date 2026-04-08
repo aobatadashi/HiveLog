@@ -378,7 +378,7 @@ export default function Home({ user }) {
                 <input
                   type="text"
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  onChange={(e) => { setNewName(e.target.value); setError(''); }}
                   placeholder="e.g., Archer B Supply, Winfield Farm"
                   autoFocus
                 />
@@ -405,8 +405,9 @@ export default function Home({ user }) {
                   placeholder="e.g., County Rd 45 behind the red barn"
                 />
               </div>
+              {error && <p className="error-msg">{error}</p>}
               <div className="btn-row">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowAdd(false); setError(''); }}>
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={!newName.trim()}>
