@@ -36,13 +36,18 @@ export default function Onboarding({ user, onComplete }) {
         .single();
       if (error) throw error;
       yard = data;
-    } catch {
-      yard = {
-        ...yardData,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-      };
-      await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
+    } catch (err) {
+      if (!navigator.onLine) {
+        yard = {
+          ...yardData,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+        };
+        await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
+      } else {
+        setSaving(false);
+        return;
+      }
     }
 
     setCreatedYard({ ...yard, colony_count: 0, hive_count: hiveCountNum, last_activity: null });

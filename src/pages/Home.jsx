@@ -134,7 +134,13 @@ export default function Home({ user }) {
         setError('A yard with that name already exists');
         return;
       }
-      await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
+      // If offline, queue for later sync
+      if (!navigator.onLine) {
+        await addToQueue({ table: 'yards', operation: 'insert', data: yardData });
+      } else {
+        setError(err?.message || 'Failed to create yard');
+        return;
+      }
       const optimisticYard = {
         ...yardData,
         id: crypto.randomUUID(),
