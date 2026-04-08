@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient.js';
 import { addToQueue } from '../lib/offlineQueue.js';
 import { cacheSet, cacheGet } from '../lib/cache.js';
 import YardCard from '../components/YardCard.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 
 export default function Home({ user }) {
   const [yards, setYards] = useState([]);
@@ -272,6 +273,19 @@ export default function Home({ user }) {
           return <div className="loading"><div className="spinner" /></div>;
         }
         if (yards.length === 0) {
+          const onboarded = localStorage.getItem('hivelog_onboarded');
+          if (!onboarded) {
+            return (
+              <Onboarding
+                user={user}
+                onComplete={(createdYard) => {
+                  if (createdYard) {
+                    setYards([createdYard]);
+                  }
+                }}
+              />
+            );
+          }
           return (
             <div className="empty-state">
               <p>No yards yet</p>
