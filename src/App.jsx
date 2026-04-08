@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.js';
 import { setupOnlineSync } from './lib/sync.js';
@@ -24,8 +24,17 @@ function Toast({ message, onDone }) {
 export default function App() {
   const { user, loading, signOut } = useAuth();
   const [toast, setToast] = useState(null);
+  const prevUser = useRef(null);
 
   const handleToast = useCallback((msg) => setToast(msg), []);
+
+  // When user signs in, always navigate to Home
+  useEffect(() => {
+    if (!prevUser.current && user) {
+      window.location.hash = '#/';
+    }
+    prevUser.current = user;
+  }, [user]);
 
   useEffect(() => {
     const showSyncToast = (count) => {
