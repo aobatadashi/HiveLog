@@ -406,6 +406,13 @@ textarea {
   margin-bottom: var(--space-sm);
 }
 
+.form-hint {
+  display: block;
+  font-size: var(--font-sm, 14px);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-xs);
+}
+
 .modal .btn-row {
   display: flex;
   gap: var(--space-md);

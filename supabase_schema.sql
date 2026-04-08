@@ -12,6 +12,7 @@ CREATE TABLE yards (
   owner_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   location_note TEXT,
+  hive_count  INTEGER NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -144,6 +145,61 @@ CREATE INDEX idx_events_colony_created ON events(colony_id, created_at DESC);
 -- Uniqueness constraints to prevent duplicate names within scope
 CREATE UNIQUE INDEX idx_yards_owner_name ON yards(owner_id, name);
 CREATE UNIQUE INDEX idx_colonies_yard_label ON colonies(yard_id, label);
+
+-- ============================================================
+-- YARD EVENTS (bulk / yard-level operations)
+-- ============================================================
+CREATE TABLE yard_events (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  yard_id         UUID NOT NULL REFERENCES yards(id) ON DELETE CASCADE,
+  type            TEXT NOT NULL CHECK (type IN (
+    'split_out', 'split_in',
+    'transfer_out', 'transfer_in',
+    'loss', 'addition', 'adjustment',
+    'inspection', 'treatment', 'feed', 'harvest',
+    'mite', 'swarm', 'queenless'
+  )),
+  count           INTEGER,
+  related_yard_id UUID REFERENCES yards(id) ON DELETE SET NULL,
+  pair_id         UUID,
+  notes           TEXT,
+  logged_by       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE yard_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view yard events in their yards"
+  ON yard_events FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM yards WHERE yards.id = yard_events.yard_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert yard events in their yards"
+  ON yard_events FOR INSERT
+  WITH CHECK (
+    auth.uid() = logged_by
+    AND EXISTS (
+      SELECT 1 FROM yards WHERE yards.id = yard_events.yard_id AND yards.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their own yard events"
+  ON yard_events FOR UPDATE
+  USING (auth.uid() = logged_by)
+  WITH CHECK (auth.uid() = logged_by);
+
+CREATE POLICY "Users can delete their own yard events"
+  ON yard_events FOR DELETE
+  USING (auth.uid() = logged_by);
+
+CREATE INDEX idx_yard_events_yard_id ON yard_events(yard_id);
+CREATE INDEX idx_yard_events_logged_by ON yard_events(logged_by);
+CREATE INDEX idx_yard_events_yard_created ON yard_events(yard_id, created_at DESC);
+CREATE INDEX idx_yard_events_related_yard ON yard_events(related_yard_id);
+CREATE INDEX idx_yard_events_pair_id ON yard_events(pair_id);
 
 -- ============================================================
 -- QUEENS

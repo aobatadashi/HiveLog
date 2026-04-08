@@ -9,6 +9,21 @@ function isToday(dateStr) {
     && d.getDate() === now.getDate();
 }
 
+function getHiveDisplay(yard) {
+  const bulk = yard.hive_count || 0;
+  const colonies = yard.colony_count || 0;
+  if (bulk > 0 && colonies === 0) {
+    return `${bulk.toLocaleString()} ${bulk === 1 ? 'hive' : 'hives'}`;
+  }
+  if (colonies > 0 && bulk === 0) {
+    return `${colonies.toLocaleString()} ${colonies === 1 ? 'colony' : 'colonies'}`;
+  }
+  if (bulk > 0 && colonies > 0) {
+    return `${bulk.toLocaleString()} hives (${colonies} tracked)`;
+  }
+  return 'No hives yet';
+}
+
 export default function YardCard({ yard }) {
   const navigate = useNavigate();
 
@@ -25,8 +40,16 @@ export default function YardCard({ yard }) {
           <h3 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {yard.name}
           </h3>
+          <p style={{
+            fontSize: 'var(--font-lg)',
+            fontWeight: 700,
+            color: 'var(--color-text)',
+            marginTop: 'var(--space-xs)',
+          }}>
+            {getHiveDisplay(yard)}
+          </p>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)', marginTop: 'var(--space-xs)' }}>
-            {yard.colony_count || 0} {yard.colony_count === 1 ? 'colony' : 'colonies'} · {lastActivity}
+            {lastActivity}
             {activityIsToday && <span className="badge-today">Today</span>}
           </p>
           {yard.location_note && (

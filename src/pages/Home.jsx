@@ -12,6 +12,7 @@ export default function Home({ user }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [newHiveCount, setNewHiveCount] = useState('');
   const [search, setSearch] = useState('');
   const [filterAttention, setFilterAttention] = useState(false);
   const navigate = useNavigate();
@@ -90,10 +91,12 @@ export default function Home({ user }) {
     e.preventDefault();
     if (!newName.trim()) return;
 
+    const hiveCount = parseInt(newHiveCount, 10) || 0;
     const yardData = {
       owner_id: user.id,
       name: newName.trim(),
       location_note: newLocation.trim() || null,
+      hive_count: hiveCount,
     };
 
     try {
@@ -105,7 +108,7 @@ export default function Home({ user }) {
 
       if (insertError) throw insertError;
 
-      setYards((prev) => [{ ...data, colony_count: 0, last_activity: null }, ...prev]);
+      setYards((prev) => [{ ...data, colony_count: 0, last_activity: null, hive_count: data.hive_count || 0 }, ...prev]);
     } catch (err) {
       if (err?.code === '23505') {
         setError('A yard with that name already exists');
@@ -118,6 +121,7 @@ export default function Home({ user }) {
         id: crypto.randomUUID(),
         created_at: new Date().toISOString(),
         colony_count: 0,
+        hive_count: hiveCount,
         last_activity: null,
       };
       setYards((prev) => {
@@ -129,10 +133,11 @@ export default function Home({ user }) {
 
     setNewName('');
     setNewLocation('');
+    setNewHiveCount('');
     setShowAdd(false);
   }
 
-  const totalColonies = yards.reduce((sum, y) => sum + y.colony_count, 0);
+  const totalHives = yards.reduce((sum, y) => sum + Math.max(y.hive_count || 0, y.colony_count || 0), 0);
   const totalYards = yards.length;
   const now = Date.now();
   const fourteenDays = 14 * 24 * 60 * 60 * 1000;
@@ -171,7 +176,7 @@ export default function Home({ user }) {
           fontSize: 'var(--font-body)',
           fontWeight: 600,
         }}>
-          <span>{totalColonies.toLocaleString()} {totalColonies === 1 ? 'colony' : 'colonies'}</span>
+          <span>{totalHives.toLocaleString()} {totalHives === 1 ? 'hive' : 'hives'}</span>
           <span style={{ color: 'var(--color-text-secondary)' }}>&middot;</span>
           <span>{totalYards} {totalYards === 1 ? 'yard' : 'yards'}</span>
           <span style={{ color: 'var(--color-text-secondary)' }}>&middot;</span>
@@ -306,17 +311,30 @@ export default function Home({ user }) {
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g., North Field"
+                  placeholder="e.g., Archer B Supply, Winfield Farm"
                   autoFocus
                 />
+                <span className="form-hint">Give your yard a name you'll recognize</span>
               </div>
               <div className="form-group">
-                <label>Location Note (optional)</label>
+                <label>Number of Hives</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={newHiveCount}
+                  onChange={(e) => setNewHiveCount(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="e.g., 216"
+                />
+                <span className="form-hint">How many hives are in this yard right now?</span>
+              </div>
+              <div className="form-group">
+                <label>Location (optional)</label>
                 <input
                   type="text"
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
-                  placeholder="e.g., Behind the barn"
+                  placeholder="e.g., County Rd 45 behind the red barn"
                 />
               </div>
               <div className="btn-row">
