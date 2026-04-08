@@ -367,12 +367,40 @@ export default function YardView({ user }) {
       </div>
 
       {yard?.location_note && (
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)', marginTop: 'calc(-1 * var(--space-md))' }}>
+        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-sm)', marginTop: 'calc(-1 * var(--space-md))' }}>
           {yard.location_note}
         </p>
       )}
 
-      {/* Yard-wide event logging buttons */}
+      {/* Hive count display for bulk yards */}
+      {yard && (yard.hive_count > 0) && (
+        <p style={{
+          fontSize: 'var(--font-2xl, 28px)',
+          fontWeight: 700,
+          color: 'var(--color-accent)',
+          marginBottom: 'var(--space-lg)',
+        }}>
+          {yard.hive_count.toLocaleString()} hives
+        </p>
+      )}
+
+      {/* Yard-level event logging — always available */}
+      <div style={{ marginBottom: 'var(--space-lg)' }}>
+        <button
+          className="btn btn-primary"
+          style={{
+            width: '100%',
+            height: '72px',
+            fontSize: 'var(--font-lg)',
+            marginBottom: 'var(--space-sm)',
+          }}
+          onClick={() => navigate(`/yard-log/${id}`)}
+        >
+          Log Yard Event
+        </button>
+      </div>
+
+      {/* Colony-level event logging buttons */}
       {colonies.length > 0 && (
         <div style={{ marginBottom: 'var(--space-lg)' }}>
           <div style={{ display: 'flex', gap: 'var(--space-md)' }}>

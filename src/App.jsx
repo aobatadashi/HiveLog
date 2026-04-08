@@ -10,6 +10,7 @@ import HiveView from './pages/HiveView.jsx';
 import LogEvent from './pages/LogEvent.jsx';
 import Settings from './pages/Settings.jsx';
 import WalkYard from './pages/WalkYard.jsx';
+import LogYardEvent from './pages/LogYardEvent.jsx';
 
 function Toast({ message, onDone }) {
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/hive/:id" element={<HiveView user={user} />} />
             <Route path="/log/:colonyId" element={<LogEvent user={user} onToast={handleToast} />} />
             <Route path="/log-yard/:yardId" element={<LogEvent user={user} onToast={handleToast} />} />
+            <Route path="/yard-log/:yardId" element={<LogYardEvent user={user} onToast={handleToast} />} />
             <Route path="/walk/:yardId" element={<WalkYard user={user} onToast={handleToast} />} />
             <Route path="/settings" element={<Settings user={user} onSignOut={signOut} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
