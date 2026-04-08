@@ -5,6 +5,7 @@ import { addToQueue } from '../lib/offlineQueue.js';
 import { cacheSet, cacheGet } from '../lib/cache.js';
 import ColonyCard, { getStatusColor } from '../components/ColonyCard.jsx';
 import YardEventRow from '../components/YardEventRow.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 
 export default function YardView({ user }) {
   const { id } = useParams();
@@ -32,6 +33,12 @@ export default function YardView({ user }) {
   const [showBatchTransfer, setShowBatchTransfer] = useState(false);
   const [batchYards, setBatchYards] = useState([]);
   const [batchTransferring, setBatchTransferring] = useState(false);
+  const [showEditYard, setShowEditYard] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editHiveCount, setEditHiveCount] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
   const [yardEvents, setYardEvents] = useState([]);
   const [yardEventsExpanded, setYardEventsExpanded] = useState(false);
   const [yardEventsHasMore, setYardEventsHasMore] = useState(false);
@@ -292,6 +299,129 @@ export default function YardView({ user }) {
     setLoadingMoreEvents(false);
   }
 
+  function openEditYard() {
+    setEditName(yard?.name || '');
+    setEditLocation(yard?.location_note || '');
+    setEditHiveCount(String(yard?.hive_count || 0));
+    setShowEditYard(true);
+  }
+
+  async function handleSaveYard(e) {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    setEditSaving(true);
+    const updates = {
+      name: editName.trim(),
+      location_note: editLocation.trim() || null,
+      hive_count: parseInt(editHiveCount, 10) || 0,
+    };
+    try {
+      const { error: updateError } = await supabase
+        .from('yards')
+        .update(updates)
+        .eq('id', id);
+      if (updateError) throw updateError;
+    } catch (err) {
+      if (err?.code === '23505') {
+        setError('A yard with that name already exists');
+        setEditSaving(false);
+        return;
+      }
+      await addToQueue({ table: 'yards', operation: 'update', data: { id, ...updates } });
+    }
+    setYard((prev) => ({ ...prev, ...updates }));
+    setShowEditYard(false);
+    setEditSaving(false);
+  }
+
+  function handleDeleteYard() {
+    setShowEditYard(false);
+    setConfirmModal({
+      title: 'Delete Yard?',
+      message: `This will permanently delete "${yard?.name}" and all its colonies, events, and yard log entries. This cannot be undone.`,
+      confirmLabel: 'Delete Yard',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const { error: deleteError } = await supabase
+            .from('yards')
+            .delete()
+            .eq('id', id);
+          if (deleteError) throw deleteError;
+        } catch {
+          await addToQueue({ table: 'yards', operation: 'delete', data: { id } });
+        }
+        navigate('/', { replace: true });
+      },
+      onCancel: () => setConfirmModal(null),
+    });
+  }
+
+  async function handleDeleteYardEvent(event) {
+    // Calculate count reversal
+    let countDelta = 0;
+    const c = event.count || 0;
+    if (event.type === 'split_out' || event.type === 'transfer_out' || event.type === 'loss') {
+      countDelta = c; // add back
+    } else if (event.type === 'split_in' || event.type === 'transfer_in' || event.type === 'addition') {
+      countDelta = -c; // remove
+    }
+
+    try {
+      const { error: delErr } = await supabase
+        .from('yard_events')
+        .delete()
+        .eq('id', event.id);
+      if (delErr) throw delErr;
+
+      // Delete paired event if exists
+      if (event.pair_id) {
+        await supabase
+          .from('yard_events')
+          .delete()
+          .eq('pair_id', event.pair_id)
+          .neq('id', event.id);
+      }
+
+      // Reverse the hive count change
+      if (countDelta !== 0 && yard) {
+        const newCount = Math.max(0, (yard.hive_count || 0) + countDelta);
+        const { error: updateErr } = await supabase
+          .from('yards')
+          .update({ hive_count: newCount })
+          .eq('id', id);
+        if (updateErr) throw updateErr;
+        setYard((prev) => ({ ...prev, hive_count: newCount }));
+      }
+
+      // Also reverse the paired yard's count
+      if (event.pair_id && event.related_yard_id && countDelta !== 0) {
+        const pairedDelta = -countDelta;
+        const { data: relatedYard } = await supabase
+          .from('yards')
+          .select('hive_count')
+          .eq('id', event.related_yard_id)
+          .single();
+        if (relatedYard) {
+          await supabase
+            .from('yards')
+            .update({ hive_count: Math.max(0, (relatedYard.hive_count || 0) + pairedDelta) })
+            .eq('id', event.related_yard_id);
+        }
+      }
+    } catch {
+      await addToQueue({ table: 'yard_events', operation: 'delete', data: { id: event.id } });
+      if (countDelta !== 0 && yard) {
+        const newCount = Math.max(0, (yard.hive_count || 0) + countDelta);
+        await addToQueue({ table: 'yards', operation: 'update', data: { id, hive_count: newCount } });
+        setYard((prev) => ({ ...prev, hive_count: newCount }));
+      }
+    }
+
+    setYardEvents((prev) => prev.filter((e) => e.id !== event.id));
+  }
+
   function handleSelectAll(visibleColonies) {
     if (selected.size === visibleColonies.length) {
       setSelected(new Set());
@@ -405,6 +535,15 @@ export default function YardView({ user }) {
           ←
         </button>
         <h1>{yard?.name || 'Yard'}</h1>
+        {yard && (
+          <button
+            className="btn btn-secondary"
+            style={{ marginLeft: 'auto', minHeight: 44, padding: 'var(--space-sm) var(--space-md)' }}
+            onClick={openEditYard}
+          >
+            Edit
+          </button>
+        )}
       </div>
 
       {yard?.location_note && (
@@ -510,7 +649,7 @@ export default function YardView({ user }) {
           })()}
 
           {(yardEventsExpanded ? yardEvents : yardEvents.slice(0, 5)).map((event) => (
-            <YardEventRow key={event.id} event={event} />
+            <YardEventRow key={event.id} event={event} onDelete={handleDeleteYardEvent} />
           ))}
 
           {yardEventsExpanded && yardEventsHasMore && (
@@ -960,6 +1099,72 @@ export default function YardView({ user }) {
           </div>
         </div>
       )}
+
+      {/* Edit Yard Modal */}
+      {showEditYard && (
+        <div className="modal-overlay" onClick={() => setShowEditYard(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Edit Yard</h2>
+            <form onSubmit={handleSaveYard}>
+              <div className="form-group">
+                <label>Yard Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g., Archer B Supply"
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label>Number of Hives</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={editHiveCount}
+                  onChange={(e) => setEditHiveCount(e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="form-group">
+                <label>Location (optional)</label>
+                <input
+                  type="text"
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  placeholder="e.g., County Rd 45"
+                />
+              </div>
+              <div className="btn-row">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditYard(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={!editName.trim() || editSaving}>
+                  {editSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+            <button
+              className="btn btn-danger"
+              style={{ width: '100%', marginTop: 'var(--space-lg)' }}
+              onClick={handleDeleteYard}
+            >
+              Delete Yard
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title || ''}
+        message={confirmModal?.message || ''}
+        confirmLabel={confirmModal?.confirmLabel || 'Confirm'}
+        cancelLabel="Cancel"
+        onConfirm={confirmModal?.onConfirm || (() => {})}
+        onCancel={confirmModal?.onCancel || (() => {})}
+        danger={confirmModal?.danger || false}
+      />
     </div>
   );
 }

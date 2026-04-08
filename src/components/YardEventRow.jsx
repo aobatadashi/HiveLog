@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const TYPE_CONFIG = {
   split_out:    { label: 'Split Out', badge: 'split' },
   split_in:     { label: 'Split In', badge: 'split' },
@@ -43,7 +45,9 @@ function getDescription(event) {
   }
 }
 
-export default function YardEventRow({ event }) {
+export default function YardEventRow({ event, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const config = TYPE_CONFIG[event.type] || { label: event.type, badge: event.type };
 
   const date = new Date(event.created_at).toLocaleDateString(undefined, {
@@ -57,13 +61,17 @@ export default function YardEventRow({ event }) {
   });
 
   return (
-    <div style={{
-      padding: 'var(--space-md) 0',
-      borderBottom: '1px solid var(--color-border)',
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: 'var(--space-md)',
-    }}>
+    <div
+      style={{
+        padding: 'var(--space-md) 0',
+        borderBottom: '1px solid var(--color-border)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 'var(--space-md)',
+        cursor: onDelete ? 'pointer' : 'default',
+      }}
+      onClick={() => onDelete && setExpanded(!expanded)}
+    >
       <span className={`event-badge ${config.badge}`}>
         {config.label}
       </span>
@@ -80,9 +88,9 @@ export default function YardEventRow({ event }) {
             fontSize: 'var(--font-body)',
             color: 'var(--color-text-secondary)',
             marginTop: 'var(--space-xs)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            ...(expanded
+              ? { whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+              : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
           }}>
             {event.notes}
           </p>
@@ -94,6 +102,36 @@ export default function YardEventRow({ event }) {
         }}>
           {date} at {time}
         </p>
+        {expanded && onDelete && (
+          <div style={{ marginTop: 'var(--space-sm)' }}>
+            {!confirming ? (
+              <button
+                className="btn btn-danger"
+                style={{ minHeight: 48, fontSize: 'var(--font-body)', padding: 'var(--space-sm) var(--space-lg)' }}
+                onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+              >
+                Delete
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                <button
+                  className="btn btn-danger"
+                  style={{ minHeight: 48, fontSize: 'var(--font-body)', flex: 1 }}
+                  onClick={(e) => { e.stopPropagation(); onDelete(event); }}
+                >
+                  Confirm Delete
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ minHeight: 48, fontSize: 'var(--font-body)', flex: 1 }}
+                  onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

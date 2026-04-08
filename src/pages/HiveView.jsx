@@ -207,6 +207,31 @@ export default function HiveView({ user }) {
     setQueenModal(false);
   }
 
+  async function handleDeleteEvent(event) {
+    try {
+      // Delete treatment details first if exists
+      if (treatmentDetailsMap[event.id]) {
+        await supabase
+          .from('treatment_details')
+          .delete()
+          .eq('event_id', event.id);
+      }
+      const { error: delErr } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', event.id);
+      if (delErr) throw delErr;
+    } catch {
+      await addToQueue({ table: 'events', operation: 'delete', data: { id: event.id } });
+    }
+    setEvents((prev) => prev.filter((e) => e.id !== event.id));
+    setTreatmentDetailsMap((prev) => {
+      const next = { ...prev };
+      delete next[event.id];
+      return next;
+    });
+  }
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -396,6 +421,7 @@ export default function HiveView({ user }) {
                 event={event}
                 treatmentDetail={treatmentDetailsMap[event.id]}
                 loggedByName={event.logged_by ? `user ${event.logged_by.slice(0, 8)}\u2026` : null}
+                onDelete={handleDeleteEvent}
               />
             ))}
           {hasMore && filterType === 'all' && (
