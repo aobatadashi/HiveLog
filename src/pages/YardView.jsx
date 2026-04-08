@@ -878,12 +878,12 @@ export default function YardView({ user }) {
 
       {loading ? (
         <div className="loading"><div className="spinner" /></div>
-      ) : colonies.length === 0 ? (
+      ) : colonies.length === 0 && !(yard?.hive_count > 0) ? (
         <div className="empty-state">
           <p>No colonies yet</p>
-          <p>Tap + to add your first hive</p>
+          <p>Tap + to add individual hives, or use Log Yard Event for bulk tracking</p>
         </div>
-      ) : filteredColonies.length === 0 ? (
+      ) : filteredColonies.length === 0 && colonies.length > 0 ? (
         <div className="empty-state">
           <p>No colonies match{search ? ` "${search}"` : ' this filter'}</p>
         </div>
