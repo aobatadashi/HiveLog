@@ -42,3 +42,12 @@ export async function cacheGet(store, key) {
     return undefined;
   }
 }
+
+export async function cacheClear() {
+  try {
+    const db = await getDB();
+    await db.clear('data');
+  } catch {
+    // Silently fail
+  }
+}

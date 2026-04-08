@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { cacheClear } from '../lib/cache.js';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -22,6 +23,10 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
+    localStorage.removeItem('hivelog_onboarded');
+    localStorage.removeItem('hivelog_lastEventType');
+    localStorage.removeItem('hivelog_colonySort');
+    await cacheClear();
     await supabase.auth.signOut();
     setUser(null);
   }, []);
