@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient.js';
 import { addToQueue } from '../lib/offlineQueue.js';
 import { cacheSet, cacheGet } from '../lib/cache.js';
 import ColonyCard, { getStatusColor } from '../components/ColonyCard.jsx';
+import YardEventRow from '../components/YardEventRow.jsx';
 
 export default function YardView({ user }) {
   const { id } = useParams();
@@ -31,6 +32,10 @@ export default function YardView({ user }) {
   const [showBatchTransfer, setShowBatchTransfer] = useState(false);
   const [batchYards, setBatchYards] = useState([]);
   const [batchTransferring, setBatchTransferring] = useState(false);
+  const [yardEvents, setYardEvents] = useState([]);
+  const [yardEventsExpanded, setYardEventsExpanded] = useState(false);
+  const [yardEventsHasMore, setYardEventsHasMore] = useState(false);
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false);
 
   function setSearch(value) {
     if (value) {
@@ -136,6 +141,19 @@ export default function YardView({ user }) {
 
       setColonies(coloniesWithEvents);
       await cacheSet('colonies', id, { yard: yardData, colonies: coloniesWithEvents });
+
+      // Fetch yard-level events
+      const PAGE_SIZE = 20;
+      const { data: yardEventData } = await supabase
+        .from('yard_events')
+        .select('*, related_yard:yards!yard_events_related_yard_id_fkey(name)')
+        .eq('yard_id', id)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE + 1);
+
+      const events = yardEventData || [];
+      setYardEventsHasMore(events.length > PAGE_SIZE);
+      setYardEvents(events.slice(0, PAGE_SIZE));
     } catch {
       const cached = await cacheGet('colonies', id);
       if (cached) {
@@ -249,6 +267,29 @@ export default function YardView({ user }) {
     setNewLabel('');
     setBatchPrefix('');
     setBatchCount('');
+  }
+
+  async function loadMoreYardEvents() {
+    if (loadingMoreEvents || yardEvents.length === 0) return;
+    setLoadingMoreEvents(true);
+    const PAGE_SIZE = 20;
+    const lastEvent = yardEvents[yardEvents.length - 1];
+    try {
+      const { data } = await supabase
+        .from('yard_events')
+        .select('*, related_yard:yards!yard_events_related_yard_id_fkey(name)')
+        .eq('yard_id', id)
+        .lt('created_at', lastEvent.created_at)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE + 1);
+
+      const events = data || [];
+      setYardEventsHasMore(events.length > PAGE_SIZE);
+      setYardEvents((prev) => [...prev, ...events.slice(0, PAGE_SIZE)]);
+    } catch {
+      // Silently fail — user can retry
+    }
+    setLoadingMoreEvents(false);
   }
 
   function handleSelectAll(visibleColonies) {
@@ -399,6 +440,95 @@ export default function YardView({ user }) {
           Log Yard Event
         </button>
       </div>
+
+      {/* Yard event history */}
+      {yardEvents.length > 0 && (
+        <div style={{
+          marginBottom: 'var(--space-lg)',
+          background: 'var(--color-surface)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-card)',
+          padding: 'var(--space-md) var(--space-lg)',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 'var(--space-sm)',
+          }}>
+            <h3 style={{ fontSize: 'var(--font-lg)', fontWeight: 700 }}>Yard Log</h3>
+            {yardEvents.length > 5 && (
+              <button
+                onClick={() => setYardEventsExpanded(!yardEventsExpanded)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-accent)',
+                  fontSize: 'var(--font-body)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  minHeight: 44,
+                  padding: 'var(--space-sm)',
+                }}
+              >
+                {yardEventsExpanded ? 'Show less' : `Show all (${yardEvents.length}${yardEventsHasMore ? '+' : ''})`}
+              </button>
+            )}
+          </div>
+
+          {/* Net change summary */}
+          {(() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayEvents = yardEvents.filter((e) => new Date(e.created_at) >= today);
+            if (todayEvents.length === 0) return null;
+
+            const changes = [];
+            let net = 0;
+            for (const e of todayEvents) {
+              const c = e.count || 0;
+              if (e.type === 'split_in' || e.type === 'transfer_in' || e.type === 'addition') {
+                net += c;
+                if (c > 0) changes.push(`+${c} ${e.type === 'split_in' ? 'splits in' : e.type === 'transfer_in' ? 'moved in' : 'added'}`);
+              } else if (e.type === 'split_out' || e.type === 'transfer_out' || e.type === 'loss') {
+                net -= c;
+                if (c > 0) changes.push(`-${c} ${e.type === 'loss' ? 'losses' : e.type === 'split_out' ? 'splits out' : 'moved out'}`);
+              }
+            }
+            if (changes.length === 0) return null;
+
+            return (
+              <p style={{
+                fontSize: 'var(--font-body)',
+                color: net >= 0 ? 'var(--color-status-green, #2e7d32)' : 'var(--color-danger, #c62828)',
+                fontWeight: 600,
+                marginBottom: 'var(--space-sm)',
+              }}>
+                Today: {changes.join(', ')}
+              </p>
+            );
+          })()}
+
+          {(yardEventsExpanded ? yardEvents : yardEvents.slice(0, 5)).map((event) => (
+            <YardEventRow key={event.id} event={event} />
+          ))}
+
+          {yardEventsExpanded && yardEventsHasMore && (
+            <button
+              className="btn btn-secondary"
+              style={{
+                width: '100%',
+                marginTop: 'var(--space-md)',
+                minHeight: 48,
+              }}
+              onClick={loadMoreYardEvents}
+              disabled={loadingMoreEvents}
+            >
+              {loadingMoreEvents ? 'Loading...' : 'Load More'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Colony-level event logging buttons */}
       {colonies.length > 0 && (
