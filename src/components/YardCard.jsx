@@ -48,6 +48,11 @@ export default function YardCard({ yard, onDelete }) {
           }}>
             {getHiveDisplay(yard)}
           </p>
+          {(yard.county || yard.state) && (
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)', marginTop: 'var(--space-xs)' }}>
+              {[yard.county && `${yard.county} County`, yard.state].filter(Boolean).join(', ')}
+            </p>
+          )}
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)', marginTop: 'var(--space-xs)' }}>
             {lastActivity}
             {activityIsToday && <span className="badge-today">Today</span>}

@@ -13,6 +13,9 @@ CREATE TABLE yards (
   name        TEXT NOT NULL,
   location_note TEXT,
   hive_count  INTEGER NOT NULL DEFAULT 0,
+  address     TEXT,
+  county      TEXT,
+  state       TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

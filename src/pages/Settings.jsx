@@ -150,6 +150,23 @@ export default function Settings({ user, onSignOut }) {
     setSaving(null);
   }
 
+  async function handleYardFieldChange(yardId, field, value) {
+    setSaving(yardId);
+    const update = { [field]: value || null };
+    try {
+      const { error: updateError } = await supabase
+        .from('yards')
+        .update(update)
+        .eq('id', yardId);
+      if (updateError) throw updateError;
+      setYards((prev) => prev.map((y) => (y.id === yardId ? { ...y, ...update } : y)));
+    } catch {
+      setYards((prev) => prev.map((y) => (y.id === yardId ? { ...y, ...update } : y)));
+      await addToQueue({ table: 'yards', operation: 'update', data: { id: yardId, ...update } });
+    }
+    setSaving(null);
+  }
+
   async function handleColonyLabelChange(colonyId, yardId, newLabel) {
     setSaving(colonyId);
     try {
@@ -560,6 +577,34 @@ export default function Settings({ user, onSignOut }) {
                           }
                         }}
                       />
+                      <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                        <input
+                          type="text"
+                          defaultValue={yard.county || ''}
+                          placeholder="County"
+                          className="editable-input editable-input-secondary"
+                          style={{ flex: 1 }}
+                          onBlur={(e) => {
+                            const trimmed = e.target.value.trim();
+                            if (trimmed !== (yard.county || '')) {
+                              handleYardFieldChange(yard.id, 'county', trimmed);
+                            }
+                          }}
+                        />
+                        <input
+                          type="text"
+                          defaultValue={yard.state || ''}
+                          placeholder="State"
+                          className="editable-input editable-input-secondary"
+                          style={{ flex: 1 }}
+                          onBlur={(e) => {
+                            const trimmed = e.target.value.trim();
+                            if (trimmed !== (yard.state || '')) {
+                              handleYardFieldChange(yard.id, 'state', trimmed);
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                     {saving === yard.id && <span style={{ color: 'var(--color-text-secondary)' }}>Saving...</span>}
                     <button

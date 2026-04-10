@@ -7,6 +7,8 @@ export default function Onboarding({ user, onComplete }) {
   const [yardName, setYardName] = useState('');
   const [hiveCount, setHiveCount] = useState('');
   const [location, setLocation] = useState('');
+  const [county, setCounty] = useState('');
+  const [state, setState] = useState('');
   const [saving, setSaving] = useState(false);
   const [createdYard, setCreatedYard] = useState(null);
 
@@ -25,6 +27,8 @@ export default function Onboarding({ user, onComplete }) {
       name: yardName.trim(),
       location_note: location.trim() || null,
       hive_count: hiveCountNum,
+      county: county.trim() || null,
+      state: state.trim() || null,
     };
 
     let yard = null;
@@ -150,15 +154,39 @@ export default function Onboarding({ user, onComplete }) {
                 placeholder="e.g., 216"
               />
             </div>
+            <div style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)', fontSize: 'var(--font-body)' }}>
+                  County
+                </label>
+                <input
+                  type="text"
+                  value={county}
+                  onChange={(e) => setCounty(e.target.value)}
+                  placeholder="e.g., Alachua"
+                />
+              </div>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)', fontSize: 'var(--font-body)' }}>
+                  State
+                </label>
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g., FL"
+                />
+              </div>
+            </div>
             <div className="form-group" style={{ marginBottom: 'var(--space-xl)' }}>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-sm)', fontSize: 'var(--font-body)' }}>
-                Location (optional)
+                Location Notes (optional)
               </label>
               <input
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g., County Rd 45 behind the red barn"
+                placeholder="e.g., Behind the red barn"
               />
             </div>
             <button

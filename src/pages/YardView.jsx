@@ -37,6 +37,8 @@ export default function YardView({ user }) {
   const [editName, setEditName] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editHiveCount, setEditHiveCount] = useState('');
+  const [editCounty, setEditCounty] = useState('');
+  const [editState, setEditState] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null);
   const [yardEvents, setYardEvents] = useState([]);
@@ -318,6 +320,8 @@ export default function YardView({ user }) {
     setEditName(yard?.name || '');
     setEditLocation(yard?.location_note || '');
     setEditHiveCount(String(yard?.hive_count || 0));
+    setEditCounty(yard?.county || '');
+    setEditState(yard?.state || '');
     setShowEditYard(true);
   }
 
@@ -329,6 +333,8 @@ export default function YardView({ user }) {
       name: editName.trim(),
       location_note: editLocation.trim() || null,
       hive_count: parseInt(editHiveCount, 10) || 0,
+      county: editCounty.trim() || null,
+      state: editState.trim() || null,
     };
     try {
       const { error: updateError } = await supabase
@@ -570,8 +576,13 @@ export default function YardView({ user }) {
         )}
       </div>
 
+      {(yard?.county || yard?.state) && (
+        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-xs)', marginTop: 'calc(-1 * var(--space-md))', fontWeight: 600 }}>
+          {[yard.county && `${yard.county} County`, yard.state].filter(Boolean).join(', ')}
+        </p>
+      )}
       {yard?.location_note && (
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-sm)', marginTop: 'calc(-1 * var(--space-md))' }}>
+        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-sm)', marginTop: (yard?.county || yard?.state) ? 0 : 'calc(-1 * var(--space-md))' }}>
           {yard.location_note}
         </p>
       )}
@@ -1152,13 +1163,33 @@ export default function YardView({ user }) {
                   onChange={(e) => setEditHiveCount(e.target.value.replace(/[^0-9]/g, ''))}
                 />
               </div>
+              <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>County</label>
+                  <input
+                    type="text"
+                    value={editCounty}
+                    onChange={(e) => setEditCounty(e.target.value)}
+                    placeholder="e.g., Alachua"
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>State</label>
+                  <input
+                    type="text"
+                    value={editState}
+                    onChange={(e) => setEditState(e.target.value)}
+                    placeholder="e.g., FL"
+                  />
+                </div>
+              </div>
               <div className="form-group">
-                <label>Location (optional)</label>
+                <label>Location Notes (optional)</label>
                 <input
                   type="text"
                   value={editLocation}
                   onChange={(e) => setEditLocation(e.target.value)}
-                  placeholder="e.g., County Rd 45"
+                  placeholder="e.g., Behind the red barn"
                 />
               </div>
               <div className="btn-row">

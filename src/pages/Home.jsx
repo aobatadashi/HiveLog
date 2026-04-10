@@ -14,6 +14,8 @@ export default function Home({ user }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [newCounty, setNewCounty] = useState('');
+  const [newState, setNewState] = useState('');
   const [newHiveCount, setNewHiveCount] = useState('');
   const [search, setSearch] = useState('');
   const [filterAttention, setFilterAttention] = useState(false);
@@ -115,6 +117,8 @@ export default function Home({ user }) {
       name: newName.trim(),
       location_note: newLocation.trim() || null,
       hive_count: hiveCount,
+      county: newCounty.trim() || null,
+      state: newState.trim() || null,
     };
 
     let createdId = null;
@@ -160,6 +164,8 @@ export default function Home({ user }) {
     setNewName('');
     setNewLocation('');
     setNewHiveCount('');
+    setNewCounty('');
+    setNewState('');
     setShowAdd(false);
     if (createdId) navigate(`/yard/${createdId}`);
   }
@@ -397,13 +403,33 @@ export default function Home({ user }) {
                 />
                 <span className="form-hint">How many hives are in this yard right now?</span>
               </div>
+              <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>County</label>
+                  <input
+                    type="text"
+                    value={newCounty}
+                    onChange={(e) => setNewCounty(e.target.value)}
+                    placeholder="e.g., Alachua"
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>State</label>
+                  <input
+                    type="text"
+                    value={newState}
+                    onChange={(e) => setNewState(e.target.value)}
+                    placeholder="e.g., FL"
+                  />
+                </div>
+              </div>
               <div className="form-group">
-                <label>Location (optional)</label>
+                <label>Location Notes (optional)</label>
                 <input
                   type="text"
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
-                  placeholder="e.g., County Rd 45 behind the red barn"
+                  placeholder="e.g., Behind the red barn"
                 />
               </div>
               {error && <p className="error-msg">{error}</p>}
