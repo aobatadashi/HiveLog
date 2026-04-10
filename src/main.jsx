@@ -21,6 +21,12 @@ const updateSW = registerSW({
   },
 });
 
+// Request persistent storage so the browser doesn't evict
+// localStorage (auth session) or IndexedDB (offline queue/cache)
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist();
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
