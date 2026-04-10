@@ -7,7 +7,7 @@ import YardCard from '../components/YardCard.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 
-export default function Home({ user }) {
+export default function Home({ user, isConsultant }) {
   const [yards, setYards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -211,13 +211,23 @@ export default function Home({ user }) {
     <div className="page">
       <div className="page-header">
         <h1>My Yards</h1>
-        <button
-          className="btn btn-secondary"
-          onClick={() => navigate('/settings')}
-
-        >
-          Settings
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', marginLeft: 'auto' }}>
+          {isConsultant && (
+            <button
+              className="btn btn-primary"
+              style={{ minHeight: 44, padding: 'var(--space-sm) var(--space-md)' }}
+              onClick={() => navigate('/consultant')}
+            >
+              Dashboard
+            </button>
+          )}
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate('/settings')}
+          >
+            Settings
+          </button>
+        </div>
       </div>
 
       {error && <p className="error-msg">{error}</p>}

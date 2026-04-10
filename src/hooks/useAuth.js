@@ -5,14 +5,37 @@ import { cacheClear } from '../lib/cache.js';
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isConsultant, setIsConsultant] = useState(false);
+  const [consultantId, setConsultantId] = useState(null);
   const signInRedirectNeeded = useRef(false);
+
+  async function checkConsultantRole(userId) {
+    if (!userId) {
+      setIsConsultant(false);
+      setConsultantId(null);
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from('consultants')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      setIsConsultant(!!data);
+      setConsultantId(data?.id || null);
+    } catch {
+      setIsConsultant(false);
+      setConsultantId(null);
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      const u = session?.user ?? null;
+      setUser(u);
+      checkConsultantRole(u?.id);
       setLoading(false);
     }).catch(() => {
-      // Offline or getSession failed — don't leave user stuck on spinner
       setLoading(false);
     });
 
@@ -21,7 +44,9 @@ export function useAuth() {
         if (event === 'SIGNED_IN') {
           signInRedirectNeeded.current = true;
         }
-        setUser(session?.user ?? null);
+        const u = session?.user ?? null;
+        setUser(u);
+        checkConsultantRole(u?.id);
         setLoading(false);
       }
     );
@@ -46,7 +71,9 @@ export function useAuth() {
     window.location.hash = '#/';
     await supabase.auth.signOut();
     setUser(null);
+    setIsConsultant(false);
+    setConsultantId(null);
   }, []);
 
-  return { user, loading, signOut, consumeSignInRedirect };
+  return { user, loading, isConsultant, consultantId, signOut, consumeSignInRedirect };
 }

@@ -339,3 +339,137 @@ CREATE POLICY "Users can delete treatment details for their events"
   );
 
 CREATE INDEX idx_treatment_details_event_id ON treatment_details(event_id);
+
+-- ============================================================
+-- CONSULTANTS
+-- ============================================================
+CREATE TABLE consultants (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  business_name TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+ALTER TABLE consultants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Consultants can view their own record"
+  ON consultants FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Consultants can insert their own record"
+  ON consultants FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Consultants can update their own record"
+  ON consultants FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX idx_consultants_user_id ON consultants(user_id);
+
+-- ============================================================
+-- CONSULTANT CLIENTS (junction table)
+-- ============================================================
+CREATE TABLE consultant_clients (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  consultant_id           UUID NOT NULL REFERENCES consultants(id) ON DELETE CASCADE,
+  beekeeper_id            UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  region                  TEXT,
+  expected_winter_loss    NUMERIC DEFAULT 40,
+  expected_summer_loss    NUMERIC DEFAULT 25,
+  check_in_interval_days  INTEGER DEFAULT 14,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(consultant_id, beekeeper_id)
+);
+
+ALTER TABLE consultant_clients ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Consultants can view their own clients"
+  ON consultant_clients FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = consultant_clients.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can insert their own clients"
+  ON consultant_clients FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = consultant_clients.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can update their own clients"
+  ON consultant_clients FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = consultant_clients.consultant_id AND consultants.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = consultant_clients.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can delete their own clients"
+  ON consultant_clients FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = consultant_clients.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE INDEX idx_consultant_clients_consultant_id ON consultant_clients(consultant_id);
+CREATE INDEX idx_consultant_clients_beekeeper_id ON consultant_clients(beekeeper_id);
+
+-- ============================================================
+-- CONSULTANT READ-ONLY ACCESS POLICIES
+-- Allow consultants to read yards/colonies/events/yard_events
+-- for their linked beekeepers
+-- ============================================================
+CREATE POLICY "Consultants can view client yards"
+  ON yards FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM consultant_clients cc
+      JOIN consultants c ON c.id = cc.consultant_id
+      WHERE cc.beekeeper_id = yards.owner_id AND c.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can view client colonies"
+  ON colonies FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM yards
+      JOIN consultant_clients cc ON cc.beekeeper_id = yards.owner_id
+      JOIN consultants c ON c.id = cc.consultant_id
+      WHERE yards.id = colonies.yard_id AND c.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can view client events"
+  ON events FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM colonies
+      JOIN yards ON yards.id = colonies.yard_id
+      JOIN consultant_clients cc ON cc.beekeeper_id = yards.owner_id
+      JOIN consultants c ON c.id = cc.consultant_id
+      WHERE colonies.id = events.colony_id AND c.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can view client yard events"
+  ON yard_events FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM yards
+      JOIN consultant_clients cc ON cc.beekeeper_id = yards.owner_id
+      JOIN consultants c ON c.id = cc.consultant_id
+      WHERE yards.id = yard_events.yard_id AND c.user_id = auth.uid()
+    )
+  );
