@@ -194,9 +194,10 @@ export default function Home({ user }) {
   const totalHives = yards.reduce((sum, y) => sum + Math.max(y.hive_count || 0, y.colony_count || 0), 0);
   const totalYards = yards.length;
   const now = Date.now();
-  const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+  const inspectionInterval = parseInt(localStorage.getItem('hivelog_inspectionInterval') || '14', 10);
+  const intervalMs = inspectionInterval * 24 * 60 * 60 * 1000;
   const attentionYards = yards.filter(
-    (y) => !y.last_activity || (now - new Date(y.last_activity).getTime()) > fourteenDays
+    (y) => !y.last_activity || (now - new Date(y.last_activity).getTime()) > intervalMs
   );
   const needsAttention = attentionYards.length;
 
@@ -284,7 +285,7 @@ export default function Home({ user }) {
               }}
               aria-label="Filter yards needing attention"
             >
-              {needsAttention} {needsAttention === 1 ? 'needs' : 'need'} attention
+              {needsAttention} {needsAttention === 1 ? 'needs' : 'need'} attention ({inspectionInterval}d+)
             </button>
           )}
         </div>
@@ -336,7 +337,7 @@ export default function Home({ user }) {
         let filtered = yards;
         if (filterAttention) {
           filtered = filtered.filter(
-            (y) => !y.last_activity || (now - new Date(y.last_activity).getTime()) > fourteenDays
+            (y) => !y.last_activity || (now - new Date(y.last_activity).getTime()) > intervalMs
           );
         }
         const q = search.toLowerCase().trim();

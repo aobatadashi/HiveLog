@@ -261,6 +261,55 @@ export default function Settings({ user, onSignOut }) {
         </div>
       </div>
 
+      {/* ── Inspection Interval ── */}
+      <div style={{ marginBottom: 'var(--space-2xl)' }}>
+        <h2 style={{ marginBottom: 'var(--space-lg)' }}>Inspection Interval</h2>
+        <div className="card" style={{ padding: 'var(--space-lg)' }}>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)', marginBottom: 'var(--space-md)' }}>
+            How often do you check your yards? This controls the status colors and "needs attention" alerts.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
+            {[
+              { label: 'Weekly', days: 7 },
+              { label: 'Every 2 weeks', days: 14 },
+              { label: 'Monthly', days: 30 },
+            ].map((opt) => {
+              const current = parseInt(localStorage.getItem('hivelog_inspectionInterval') || '14', 10);
+              const isSelected = current === opt.days;
+              return (
+                <button
+                  key={opt.days}
+                  onClick={() => {
+                    localStorage.setItem('hivelog_inspectionInterval', String(opt.days));
+                    // Force re-render
+                    setError('');
+                  }}
+                  style={{
+                    flex: 1,
+                    minHeight: 56,
+                    minWidth: 90,
+                    padding: 'var(--space-sm) var(--space-md)',
+                    borderRadius: 'var(--radius-md)',
+                    border: isSelected ? '3px solid var(--color-accent)' : '3px solid var(--color-border)',
+                    backgroundColor: isSelected ? 'var(--color-accent)' : 'var(--color-surface)',
+                    color: isSelected ? 'var(--color-accent-text)' : 'var(--color-text)',
+                    fontSize: 'var(--font-body)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-sm, 14px)', marginTop: 'var(--space-sm)' }}>
+            Green = checked within {localStorage.getItem('hivelog_inspectionInterval') || '14'} days, Yellow = overdue, Red = very overdue
+          </p>
+        </div>
+      </div>
+
       {/* ── Sync Errors ── */}
       {failedItems.length > 0 && (
         <div style={{ marginBottom: 'var(--space-2xl)' }}>

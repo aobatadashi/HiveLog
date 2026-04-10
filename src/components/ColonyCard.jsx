@@ -1,23 +1,24 @@
 import { useNavigate } from 'react-router-dom';
 import WithdrawalBadge from './WithdrawalBadge.jsx';
 
-// Status legend:
+// Status legend (based on configurable inspection interval):
 //   grey   = no events ever logged
-//   green  = any event within 30 days
-//   yellow = most recent event 31–60 days ago
-//   red    = most recent event >60 days ago, or dead out
+//   green  = within 1x interval
+//   yellow = between 1x and 2x interval
+//   red    = beyond 2x interval, or dead out
 export function getStatusColor(colony) {
   if (colony.status === 'deadout') return 'red';
 
   const lastEvent = colony.last_event || colony.last_inspection;
   if (!lastEvent) return 'grey';
 
+  const interval = parseInt(localStorage.getItem('hivelog_inspectionInterval') || '14', 10);
   const daysSince = Math.floor(
     (Date.now() - new Date(lastEvent).getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  if (daysSince <= 30) return 'green';
-  if (daysSince <= 60) return 'yellow';
+  if (daysSince <= interval) return 'green';
+  if (daysSince <= interval * 2) return 'yellow';
   return 'red';
 }
 

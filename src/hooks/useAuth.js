@@ -38,6 +38,7 @@ export function useAuth() {
     localStorage.removeItem('hivelog_onboarded');
     localStorage.removeItem('hivelog_lastEventType');
     localStorage.removeItem('hivelog_colonySort');
+    localStorage.removeItem('hivelog_inspectionInterval');
     await cacheClear();
     window.location.hash = '#/';
     await supabase.auth.signOut();
