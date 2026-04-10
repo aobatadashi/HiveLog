@@ -153,8 +153,8 @@ CREATE TABLE yard_events (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   yard_id         UUID NOT NULL REFERENCES yards(id) ON DELETE CASCADE,
   type            TEXT NOT NULL CHECK (type IN (
-    'split_out', 'split_in',
-    'transfer_out', 'transfer_in',
+    'split_out', 'split_in', 'split_local',
+    'transfer_out', 'transfer_in', 'move_out',
     'loss', 'addition', 'adjustment',
     'inspection', 'treatment', 'feed', 'harvest',
     'mite', 'swarm', 'queenless'

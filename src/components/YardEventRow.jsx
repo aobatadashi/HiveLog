@@ -3,8 +3,10 @@ import { useState } from 'react';
 const TYPE_CONFIG = {
   split_out:    { label: 'Split Out', badge: 'split' },
   split_in:     { label: 'Split In', badge: 'split' },
+  split_local:  { label: 'Splits', badge: 'split' },
   transfer_out: { label: 'Moved Out', badge: 'transfer' },
   transfer_in:  { label: 'Moved In', badge: 'transfer' },
+  move_out:     { label: 'Moved Out', badge: 'transfer' },
   loss:         { label: 'Loss', badge: 'loss' },
   addition:     { label: 'Added', badge: 'addition' },
   adjustment:   { label: 'Correction', badge: 'adjustment' },
@@ -26,10 +28,13 @@ function getDescription(event) {
       return `Split ${count || '?'} → ${yardName || 'another yard'}`;
     case 'split_in':
       return `Received ${count || '?'} splits ← ${yardName || 'another yard'}`;
+    case 'split_local':
+      return `Set up ${count || '?'} splits`;
     case 'transfer_out':
-      return `${count || '?'} hives → ${yardName || 'another yard'}`;
+    case 'move_out':
+      return `Moved ${count || '?'} → ${yardName || 'another yard'}`;
     case 'transfer_in':
-      return `${count || '?'} hives ← ${yardName || 'another yard'}`;
+      return `Received ${count || '?'} ← ${yardName || 'another yard'}`;
     case 'loss':
       return `${count || '?'} ${count === 1 ? 'hive' : 'hives'} lost`;
     case 'addition':

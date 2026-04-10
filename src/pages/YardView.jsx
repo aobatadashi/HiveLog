@@ -377,9 +377,9 @@ export default function YardView({ user }) {
     // Calculate count reversal
     let countDelta = 0;
     const c = event.count || 0;
-    if (event.type === 'transfer_out' || event.type === 'loss') {
+    if (event.type === 'transfer_out' || event.type === 'move_out' || event.type === 'loss') {
       countDelta = c; // add back
-    } else if (event.type === 'split_in' || event.type === 'transfer_in' || event.type === 'addition') {
+    } else if (event.type === 'split_in' || event.type === 'split_local' || event.type === 'transfer_in' || event.type === 'addition') {
       countDelta = -c; // remove
     }
 
@@ -641,12 +641,12 @@ export default function YardView({ user }) {
             let net = 0;
             for (const e of todayEvents) {
               const c = e.count || 0;
-              if (e.type === 'split_in' || e.type === 'transfer_in' || e.type === 'addition') {
+              if (e.type === 'split_in' || e.type === 'split_local' || e.type === 'transfer_in' || e.type === 'addition') {
                 net += c;
-                if (c > 0) changes.push(`+${c} ${e.type === 'split_in' ? 'splits in' : e.type === 'transfer_in' ? 'moved in' : 'added'}`);
-              } else if (e.type === 'split_out' || e.type === 'transfer_out' || e.type === 'loss') {
+                if (c > 0) changes.push(`+${c} ${e.type === 'split_local' ? 'splits' : e.type === 'split_in' ? 'splits in' : e.type === 'transfer_in' ? 'moved in' : 'added'}`);
+              } else if (e.type === 'split_out' || e.type === 'transfer_out' || e.type === 'move_out' || e.type === 'loss') {
                 net -= c;
-                if (c > 0) changes.push(`-${c} ${e.type === 'loss' ? 'losses' : e.type === 'split_out' ? 'splits out' : 'moved out'}`);
+                if (c > 0) changes.push(`-${c} ${e.type === 'loss' ? 'losses' : 'moved out'}`);
               }
             }
             if (changes.length === 0) return null;

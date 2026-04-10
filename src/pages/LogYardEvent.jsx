@@ -8,7 +8,8 @@ import YardPicker from '../components/YardPicker.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 
 const YARD_EVENT_TYPES = [
-  { value: 'split_out', label: 'Split', emoji: '✂️', needsCount: true, needsYard: true },
+  { value: 'split_local', label: 'Set Up Splits', emoji: '✂️', needsCount: true },
+  { value: 'move_out', label: 'Move Hives', emoji: '🚚', needsCount: true, needsYard: true },
   { value: 'loss', label: 'Loss', emoji: '💀', needsCount: true },
   { value: 'feed', label: 'Feed', emoji: '🍯' },
   { value: 'treatment', label: 'Treatment', emoji: '💊' },
@@ -72,8 +73,8 @@ export default function LogYardEvent({ user, onToast }) {
     if (selectedType === 'loss' && yard && countNum > yard.hive_count) {
       return `Can't lose more than ${yard.hive_count} hives`;
     }
-    if (selectedType === 'split_out' && yard && countNum > yard.hive_count) {
-      return `Can't split more than ${yard.hive_count} hives`;
+    if (selectedType === 'move_out' && yard && countNum > yard.hive_count) {
+      return `Can't move more than ${yard.hive_count} hives`;
     }
     return null;
   }
@@ -137,10 +138,15 @@ export default function LogYardEvent({ user, onToast }) {
     let destCountDelta = 0;
     let newSourceCount = yard?.hive_count || 0;
 
-    if (selectedType === 'split_out') {
-      // Splits: source keeps its bees, destination gains new colonies
-      sourceCountDelta = 0;
+    if (selectedType === 'split_local') {
+      // Set up splits: new colonies created in current yard
+      sourceCountDelta = countNum;
+      newSourceCount += sourceCountDelta;
+    } else if (selectedType === 'move_out') {
+      // Move hives: source loses, destination gains
+      sourceCountDelta = -countNum;
       destCountDelta = countNum;
+      newSourceCount += sourceCountDelta;
     } else if (selectedType === 'loss') {
       sourceCountDelta = -countNum;
       newSourceCount += sourceCountDelta;
@@ -152,11 +158,11 @@ export default function LogYardEvent({ user, onToast }) {
       sourceCountDelta = countNum - (yard?.hive_count || 0);
     }
 
-    // Build destination yard event for splits
+    // Build destination yard event for moves
     const destEvent = (needsYard && destYard) ? {
       id: crypto.randomUUID(),
       yard_id: destYard.id,
-      type: 'split_in',
+      type: 'transfer_in',
       count: countNum,
       related_yard_id: yardId,
       pair_id: pairId,
@@ -223,8 +229,10 @@ export default function LogYardEvent({ user, onToast }) {
     if (countNum && (needsCount || isAdjustment)) {
       if (isAdjustment) {
         toastMsg = `Count corrected to ${countNum}`;
-      } else if (destYard) {
-        toastMsg = `${countNum} hives split to ${destYard.name}`;
+      } else if (selectedType === 'split_local') {
+        toastMsg = `Set up ${countNum} splits`;
+      } else if (selectedType === 'move_out' && destYard) {
+        toastMsg = `Moved ${countNum} hives to ${destYard.name}`;
       } else {
         toastMsg = `Logged ${countNum} ${label.toLowerCase()}`;
       }
@@ -343,10 +351,10 @@ export default function LogYardEvent({ user, onToast }) {
               )}
               {/* Preview of new count */}
               {countNum > 0 && !isAdjustment && yard && (needsCount) && (
-                selectedType === 'split_out' ? (
+                selectedType === 'move_out' ? (
                   <div style={{ marginTop: 'var(--space-sm)' }}>
                     <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)' }}>
-                      {yard.name}: stays at {yard.hive_count || 0} hives
+                      {yard.name}: {yard.hive_count || 0} → {Math.max(0, (yard.hive_count || 0) - countNum)} hives
                     </p>
                     {destYard && (
                       <p style={{ color: 'var(--color-status-green, #2e7d32)', fontSize: 'var(--font-body)', fontWeight: 600 }}>
@@ -361,7 +369,7 @@ export default function LogYardEvent({ user, onToast }) {
                     marginTop: 'var(--space-sm)',
                   }}>
                     {yard.hive_count || 0} → {Math.max(0,
-                      selectedType === 'loss'
+                      selectedType === 'loss' || selectedType === 'move_out'
                         ? (yard.hive_count || 0) - countNum
                         : (yard.hive_count || 0) + countNum
                     )} hives
