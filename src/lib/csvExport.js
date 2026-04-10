@@ -517,3 +517,195 @@ export async function shareCsv(csvString, filename) {
   downloadCsv(csvString, filename);
   return false;
 }
+
+/**
+ * Consultant ELAP Loss Report — losses across selected beekeepers, grouped by beekeeper → county.
+ * @param {string[]} beekeeperIds - array of beekeeper user IDs
+ * @param {string} fromDate
+ * @param {string} toDate
+ */
+export async function exportConsultantElapReport(beekeeperIds, fromDate, toDate) {
+  try {
+    const { data: yards } = await supabase
+      .from('yards')
+      .select('id, owner_id, name, hive_count, county, state, colonies(id)')
+      .in('owner_id', beekeeperIds)
+      .limit(100000);
+
+    if (!yards || yards.length === 0) return { success: false, count: 0 };
+
+    const yardMap = {};
+    const yardOwner = {};
+    for (const y of yards) {
+      yardMap[y.id] = y;
+      yardOwner[y.id] = y.owner_id;
+    }
+    const yardIds = yards.map((y) => y.id);
+
+    // Colony-level losses
+    const { data: colonies } = await supabase
+      .from('colonies')
+      .select('id, yard_id, label')
+      .in('yard_id', yardIds)
+      .limit(100000);
+
+    const colonyMap = {};
+    const colonyYardMap = {};
+    for (const c of (colonies || [])) {
+      colonyMap[c.id] = c.label;
+      colonyYardMap[c.id] = c.yard_id;
+    }
+
+    let q1 = supabase.from('events').select('*').eq('type', 'loss').order('created_at', { ascending: false }).limit(100000);
+    if (fromDate) q1 = q1.gte('created_at', fromDate);
+    if (toDate) q1 = q1.lte('created_at', toDate + 'T23:59:59');
+    const { data: colonyLosses } = await q1;
+
+    // Yard-level losses
+    let q2 = supabase.from('yard_events').select('*').eq('type', 'loss').in('yard_id', yardIds).order('created_at', { ascending: false }).limit(100000);
+    if (fromDate) q2 = q2.gte('created_at', fromDate);
+    if (toDate) q2 = q2.lte('created_at', toDate + 'T23:59:59');
+    const { data: yardLosses } = await q2;
+
+    const headers = ['Beekeeper', 'Date', 'Yard', 'County', 'State', 'Colony', 'Count', 'Notes'];
+    const rows = [];
+
+    // Colony-level loss rows
+    for (const e of (colonyLosses || [])) {
+      const yardId = colonyYardMap[e.colony_id];
+      const yard = yardMap[yardId];
+      if (!yard || !beekeeperIds.includes(yard.owner_id)) continue;
+      rows.push([
+        yard.owner_id.slice(0, 8),
+        formatDate(e.created_at),
+        yard.name,
+        yard.county || '',
+        yard.state || '',
+        colonyMap[e.colony_id] || '',
+        '1',
+        e.notes || '',
+      ]);
+    }
+
+    // Yard-level loss rows
+    for (const e of (yardLosses || [])) {
+      const yard = yardMap[e.yard_id];
+      if (!yard) continue;
+      rows.push([
+        yard.owner_id.slice(0, 8),
+        formatDate(e.created_at),
+        yard.name,
+        yard.county || '',
+        yard.state || '',
+        '',
+        String(e.count || 0),
+        e.notes || '',
+      ]);
+    }
+
+    if (rows.length === 0) return { success: false, count: 0 };
+
+    // Sort by beekeeper → county → date
+    rows.sort((a, b) => a[0].localeCompare(b[0]) || a[3].localeCompare(b[3]) || a[1].localeCompare(b[1]));
+
+    // Add summary rows per beekeeper
+    const summaryHeaders = ['', '', '', '', '', '', '', ''];
+    const finalRows = [];
+    let currentBk = null;
+    let bkLossTotal = 0;
+
+    for (const row of rows) {
+      if (row[0] !== currentBk) {
+        if (currentBk != null) {
+          finalRows.push(['', '', '', '', '', '', String(bkLossTotal), `TOTAL for ${currentBk}`]);
+          finalRows.push(summaryHeaders);
+        }
+        currentBk = row[0];
+        bkLossTotal = 0;
+      }
+      bkLossTotal += parseInt(row[6], 10) || 0;
+      finalRows.push(row);
+    }
+    if (currentBk != null) {
+      finalRows.push(['', '', '', '', '', '', String(bkLossTotal), `TOTAL for ${currentBk}`]);
+    }
+
+    const csv = arrayToCsv(headers, finalRows);
+    downloadCsv(csv, buildFilename('hivelog-consultant-elap', fromDate, toDate));
+    return { success: true, count: rows.length };
+  } catch {
+    return { success: false, count: 0 };
+  }
+}
+
+/**
+ * Consultant Quarterly Summary — one section per beekeeper showing
+ * starting hives, losses, splits, ending hives, loss percentage.
+ * @param {Array} clients - enriched client objects from ConsultantDashboard
+ * @param {string} fromDate
+ * @param {string} toDate
+ */
+export async function exportConsultantQuarterlySummary(clients, fromDate, toDate) {
+  try {
+    const beekeeperIds = clients.map((c) => c.beekeeper_id);
+
+    const { data: yards } = await supabase
+      .from('yards')
+      .select('id, owner_id, name, hive_count, county, state, colonies(id)')
+      .in('owner_id', beekeeperIds)
+      .limit(100000);
+
+    const yardIds = (yards || []).map((y) => y.id);
+
+    // Losses in range
+    let q1 = supabase.from('yard_events').select('yard_id, count').in('yard_id', yardIds).eq('type', 'loss');
+    if (fromDate) q1 = q1.gte('created_at', fromDate);
+    if (toDate) q1 = q1.lte('created_at', toDate + 'T23:59:59');
+    const { data: losses } = await q1;
+
+    // Splits in range
+    let q2 = supabase.from('yard_events').select('yard_id, count').in('yard_id', yardIds).in('type', ['split_local', 'split_in']);
+    if (fromDate) q2 = q2.gte('created_at', fromDate);
+    if (toDate) q2 = q2.lte('created_at', toDate + 'T23:59:59');
+    const { data: splits } = await q2;
+
+    function sumForBeekeeper(events, bkId) {
+      let total = 0;
+      for (const e of (events || [])) {
+        const yard = (yards || []).find((y) => y.id === e.yard_id);
+        if (yard && yard.owner_id === bkId) total += (e.count || 0);
+      }
+      return total;
+    }
+
+    const headers = ['Beekeeper', 'Region', 'Current Hives', 'Losses', 'Splits', 'Loss %', 'Expected Max %', 'Status'];
+    const rows = clients.map((client) => {
+      const bkYards = (yards || []).filter((y) => y.owner_id === client.beekeeper_id);
+      const totalHives = bkYards.reduce((sum, y) => sum + Math.max(y.hive_count || 0, y.colonies?.length || 0), 0);
+      const totalLosses = sumForBeekeeper(losses, client.beekeeper_id);
+      const totalSplits = sumForBeekeeper(splits, client.beekeeper_id);
+      const lossRate = totalHives > 0 ? Math.round((totalLosses / totalHives) * 100) : 0;
+      const expectedMax = client.expected_winter_loss || 40;
+      const status = lossRate <= expectedMax ? 'OK' : lossRate <= expectedMax + 10 ? 'WARNING' : 'CRITICAL';
+
+      return [
+        client.beekeeper_id.slice(0, 8),
+        client.region || '',
+        String(totalHives),
+        String(totalLosses),
+        String(totalSplits),
+        `${lossRate}%`,
+        `${expectedMax}%`,
+        status,
+      ];
+    });
+
+    if (rows.length === 0) return { success: false, count: 0 };
+
+    const csv = arrayToCsv(headers, rows);
+    downloadCsv(csv, buildFilename('hivelog-quarterly-summary', fromDate, toDate));
+    return { success: true, count: rows.length };
+  } catch {
+    return { success: false, count: 0 };
+  }
+}

@@ -2,12 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
 import { calcLossRate, getLossAlertLevel, getSeasonalExpected, getTrendDirection, getQuarterRange } from '../lib/trends.js';
+import { exportConsultantElapReport, exportConsultantQuarterlySummary } from '../lib/csvExport.js';
 
 export default function ConsultantDashboard({ user, consultantId, onSwitchToApp }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAlertsOnly, setShowAlertsOnly] = useState(false);
+  const [selectedForExport, setSelectedForExport] = useState(new Set());
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [exportTo, setExportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exporting, setExporting] = useState(null);
   const navigate = useNavigate();
 
   const fetchClients = useCallback(async () => {
@@ -364,6 +373,150 @@ export default function ConsultantDashboard({ user, consultantId, onSwitchToApp 
             </div>
           </div>
         ))
+      )}
+
+      {/* Export section */}
+      {!loading && clients.length > 0 && (
+        <div style={{
+          marginTop: 'var(--space-2xl)',
+          borderTop: '1px solid var(--color-border)',
+          paddingTop: 'var(--space-xl)',
+        }}>
+          <h2 style={{ marginBottom: 'var(--space-md)' }}>ELAP Export</h2>
+
+          {/* Client selection */}
+          <div style={{ marginBottom: 'var(--space-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+              <p style={{ fontWeight: 600, fontSize: 'var(--font-body)' }}>Select clients:</p>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-accent)',
+                  fontWeight: 600,
+                  fontSize: 'var(--font-body)',
+                  cursor: 'pointer',
+                  minHeight: 44,
+                  padding: 'var(--space-sm)',
+                }}
+                onClick={() => {
+                  if (selectedForExport.size === clients.length) {
+                    setSelectedForExport(new Set());
+                  } else {
+                    setSelectedForExport(new Set(clients.map((c) => c.beekeeper_id)));
+                  }
+                }}
+              >
+                {selectedForExport.size === clients.length ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+            {clients.map((client) => (
+              <button
+                key={client.id}
+                onClick={() => setSelectedForExport((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(client.beekeeper_id)) next.delete(client.beekeeper_id);
+                  else next.add(client.beekeeper_id);
+                  return next;
+                })}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-md)',
+                  width: '100%',
+                  minHeight: 48,
+                  padding: 'var(--space-sm) var(--space-md)',
+                  marginBottom: 'var(--space-xs)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: selectedForExport.has(client.beekeeper_id)
+                    ? '2px solid var(--color-accent)'
+                    : '2px solid var(--color-border)',
+                  backgroundColor: selectedForExport.has(client.beekeeper_id)
+                    ? 'var(--color-accent)'
+                    : 'var(--color-surface)',
+                  color: selectedForExport.has(client.beekeeper_id)
+                    ? 'var(--color-accent-text)'
+                    : 'var(--color-text)',
+                  fontSize: 'var(--font-body)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 4,
+                  border: '2px solid',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 14,
+                  flexShrink: 0,
+                }}>
+                  {selectedForExport.has(client.beekeeper_id) ? '✓' : ''}
+                </span>
+                Beekeeper {client.beekeeper_id.slice(0, 8)}
+                <span style={{ marginLeft: 'auto', fontWeight: 400, opacity: 0.7 }}>
+                  {client.totalHives} hives
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Date range */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--font-sm, 14px)', marginBottom: 'var(--space-xs)' }}>From</label>
+              <input
+                type="date"
+                value={exportFrom}
+                onChange={(e) => setExportFrom(e.target.value)}
+                style={{ minHeight: 48 }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--font-sm, 14px)', marginBottom: 'var(--space-xs)' }}>To</label>
+              <input
+                type="date"
+                value={exportTo}
+                onChange={(e) => setExportTo(e.target.value)}
+                style={{ minHeight: 48 }}
+              />
+            </div>
+          </div>
+
+          {/* Export buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', minHeight: 56 }}
+              disabled={selectedForExport.size === 0 || exporting !== null}
+              onClick={async () => {
+                setExporting('elap');
+                const result = await exportConsultantElapReport([...selectedForExport], exportFrom, exportTo);
+                if (!result.success) setError('No loss data to export for selected clients');
+                setExporting(null);
+              }}
+            >
+              {exporting === 'elap' ? 'Exporting...' : `ELAP Loss Report (${selectedForExport.size} clients)`}
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{ width: '100%', minHeight: 56 }}
+              disabled={selectedForExport.size === 0 || exporting !== null}
+              onClick={async () => {
+                setExporting('summary');
+                const selectedClients = clients.filter((c) => selectedForExport.has(c.beekeeper_id));
+                const result = await exportConsultantQuarterlySummary(selectedClients, exportFrom, exportTo);
+                if (!result.success) setError('No data to export');
+                setExporting(null);
+              }}
+            >
+              {exporting === 'summary' ? 'Exporting...' : `Quarterly Summary (${selectedForExport.size} clients)`}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
