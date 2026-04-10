@@ -13,6 +13,7 @@ import WalkYard from './pages/WalkYard.jsx';
 import LogYardEvent from './pages/LogYardEvent.jsx';
 import ConsultantDashboard from './pages/ConsultantDashboard.jsx';
 import ConsultantClientView from './pages/ConsultantClientView.jsx';
+import ConsultantSchedule from './pages/ConsultantSchedule.jsx';
 
 function Toast({ message, onDone }) {
   useEffect(() => {
@@ -58,6 +59,9 @@ function AppRoutes({ user, signOut, handleToast, toast, setToast, consumeSignInR
                 } />
                 <Route path="/consultant/client/:beekeeperId" element={
                   <ConsultantClientView user={user} consultantId={consultantId} />
+                } />
+                <Route path="/consultant/schedule" element={
+                  <ConsultantSchedule user={user} consultantId={consultantId} onToast={handleToast} />
                 } />
               </>
             )}

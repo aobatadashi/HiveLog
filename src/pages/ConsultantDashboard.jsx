@@ -177,15 +177,24 @@ export default function ConsultantDashboard({ user, consultantId, onSwitchToApp 
     <div className="page">
       <div className="page-header">
         <h1>Dashboard</h1>
-        {onSwitchToApp && (
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', marginLeft: 'auto' }}>
           <button
-            className="btn btn-secondary"
-            style={{ marginLeft: 'auto', minHeight: 44, padding: 'var(--space-sm) var(--space-md)' }}
-            onClick={onSwitchToApp}
+            className="btn btn-primary"
+            style={{ minHeight: 44, padding: 'var(--space-sm) var(--space-md)' }}
+            onClick={() => navigate('/consultant/schedule')}
           >
-            My Yards
+            Schedule
           </button>
-        )}
+          {onSwitchToApp && (
+            <button
+              className="btn btn-secondary"
+              style={{ minHeight: 44, padding: 'var(--space-sm) var(--space-md)' }}
+              onClick={onSwitchToApp}
+            >
+              My Yards
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <p className="error-msg">{error}</p>}

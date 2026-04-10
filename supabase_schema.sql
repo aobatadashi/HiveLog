@@ -473,3 +473,45 @@ CREATE POLICY "Consultants can view client yard events"
       WHERE yards.id = yard_events.yard_id AND c.user_id = auth.uid()
     )
   );
+
+-- ============================================================
+-- NUDGES (consultant → beekeeper reminders)
+-- ============================================================
+CREATE TABLE nudges (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  consultant_id   UUID NOT NULL REFERENCES consultants(id) ON DELETE CASCADE,
+  beekeeper_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sent_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  responded_at    TIMESTAMPTZ,
+  auto            BOOLEAN NOT NULL DEFAULT false
+);
+
+ALTER TABLE nudges ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Consultants can view their own nudges"
+  ON nudges FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = nudges.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can insert their own nudges"
+  ON nudges FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = nudges.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Consultants can update their own nudges"
+  ON nudges FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM consultants WHERE consultants.id = nudges.consultant_id AND consultants.user_id = auth.uid()
+    )
+  );
+
+CREATE INDEX idx_nudges_consultant_id ON nudges(consultant_id);
+CREATE INDEX idx_nudges_beekeeper_id ON nudges(beekeeper_id);
+CREATE INDEX idx_nudges_sent_at ON nudges(sent_at DESC);
