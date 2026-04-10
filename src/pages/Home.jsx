@@ -328,6 +328,14 @@ export default function Home({ user, isConsultant }) {
           return <div className="loading"><div className="spinner" /></div>;
         }
         if (yards.length === 0) {
+          if (isConsultant) {
+            return (
+              <div className="empty-state">
+                <p>No personal yards</p>
+                <p>Tap Dashboard above to view your clients</p>
+              </div>
+            );
+          }
           const onboarded = localStorage.getItem('hivelog_onboarded');
           if (!onboarded) {
             return (

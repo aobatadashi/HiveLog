@@ -29,9 +29,9 @@ function AppRoutes({ user, signOut, handleToast, toast, setToast, consumeSignInR
 
   useLayoutEffect(() => {
     if (user && consumeSignInRedirect()) {
-      navigate('/', { replace: true });
+      navigate(isConsultant ? '/consultant' : '/', { replace: true });
     }
-  }, [user, consumeSignInRedirect, navigate]);
+  }, [user, consumeSignInRedirect, navigate, isConsultant]);
 
   return (
     <>
