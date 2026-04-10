@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
 import { addToQueue } from '../lib/offlineQueue.js';
 import { getAllFailed, removeFromFailed } from '../lib/offlineQueue.js';
-import { exportAllEvents, exportColonyStatus, exportTreatmentLog } from '../lib/csvExport.js';
+import { exportAllEvents, exportColonyStatus, exportTreatmentLog, exportElapLosses, exportSplitsReport, exportFullActivity } from '../lib/csvExport.js';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 
 export default function Settings({ user, onSignOut }) {
@@ -479,6 +479,67 @@ export default function Settings({ user, onSignOut }) {
             }}
           >
             {exporting === 'treatments' ? 'Exporting...' : 'Export Treatment Log'}
+          </button>
+
+          <div style={{ borderTop: '1px solid var(--color-border)', margin: 'var(--space-lg) 0', paddingTop: 'var(--space-md)' }}>
+            <p style={{ fontWeight: 600, marginBottom: 'var(--space-sm)', fontSize: 'var(--font-body)' }}>ELAP & Activity Reports</p>
+          </div>
+
+          <button
+            className="btn-export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting('elap');
+              try {
+                const result = await exportElapLosses(exportFrom, exportTo);
+                if (!result.success) {
+                  showError('No loss events to export');
+                }
+              } catch {
+                showError('Export failed');
+              }
+              setExporting(null);
+            }}
+          >
+            {exporting === 'elap' ? 'Exporting...' : 'ELAP Loss Report'}
+          </button>
+
+          <button
+            className="btn-export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting('splits');
+              try {
+                const result = await exportSplitsReport(exportFrom, exportTo);
+                if (!result.success) {
+                  showError('No split/move events to export');
+                }
+              } catch {
+                showError('Export failed');
+              }
+              setExporting(null);
+            }}
+          >
+            {exporting === 'splits' ? 'Exporting...' : 'Splits & Moves Report'}
+          </button>
+
+          <button
+            className="btn-export"
+            disabled={exporting !== null}
+            onClick={async () => {
+              setExporting('full');
+              try {
+                const result = await exportFullActivity(exportFrom, exportTo);
+                if (!result.success) {
+                  showError('No activity to export');
+                }
+              } catch {
+                showError('Export failed');
+              }
+              setExporting(null);
+            }}
+          >
+            {exporting === 'full' ? 'Exporting...' : 'Full Activity Report'}
           </button>
         </div>
       </div>

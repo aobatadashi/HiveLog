@@ -312,3 +312,208 @@ export async function exportTreatmentLog(fromDate, toDate) {
   downloadCsv(csv, buildFilename('hivelog-treatment-log', fromDate, toDate));
   return { success: true, count: events.length, offline };
 }
+
+/**
+ * Export ELAP Loss Report — loss events grouped by yard with county/state.
+ */
+export async function exportElapLosses(fromDate, toDate) {
+  let offline = false;
+  let yards = [];
+  let colonies = [];
+  let events = [];
+
+  try {
+    const { data: yData } = await supabase.from('yards').select('id, name, county, state').limit(10000);
+    yards = yData || [];
+    const { data: cData } = await supabase.from('colonies').select('id, yard_id, label').limit(100000);
+    colonies = cData || [];
+
+    let query = supabase.from('events').select('*').eq('type', 'loss').order('created_at', { ascending: false }).limit(100000);
+    if (fromDate) query = query.gte('created_at', fromDate);
+    if (toDate) query = query.lte('created_at', toDate + 'T23:59:59');
+    const { data: eData } = await query;
+    events = eData || [];
+  } catch {
+    offline = true;
+    const cachedYards = await cacheGet('yards', 'all');
+    if (cachedYards) yards = cachedYards;
+    return { success: false, count: 0, offline };
+  }
+
+  if (events.length === 0) return { success: false, count: 0, offline };
+
+  const yardMap = {};
+  const yardCounty = {};
+  const yardState = {};
+  for (const y of yards) {
+    yardMap[y.id] = y.name;
+    yardCounty[y.id] = y.county || '';
+    yardState[y.id] = y.state || '';
+  }
+  const colonyMap = {};
+  const colonyYardMap = {};
+  for (const c of colonies) {
+    colonyMap[c.id] = c.label;
+    colonyYardMap[c.id] = c.yard_id;
+  }
+
+  const headers = ['Date', 'Yard Name', 'County', 'State', 'Colony', 'Loss Notes'];
+  const rows = events.map((e) => {
+    const yardId = colonyYardMap[e.colony_id];
+    return [
+      formatDate(e.created_at),
+      yardMap[yardId] || 'Unknown',
+      yardCounty[yardId] || '',
+      yardState[yardId] || '',
+      colonyMap[e.colony_id] || 'Unknown',
+      e.notes || '',
+    ];
+  });
+
+  // Sort by county then yard name
+  rows.sort((a, b) => a[2].localeCompare(b[2]) || a[1].localeCompare(b[1]));
+
+  const csv = arrayToCsv(headers, rows);
+  downloadCsv(csv, buildFilename('hivelog-elap-losses', fromDate, toDate));
+  return { success: true, count: events.length, offline };
+}
+
+/**
+ * Export Splits Report — all split yard events with source/destination.
+ */
+export async function exportSplitsReport(fromDate, toDate) {
+  let offline = false;
+
+  try {
+    const { data: yards } = await supabase.from('yards').select('id, name').limit(10000);
+    const yardMap = {};
+    for (const y of (yards || [])) yardMap[y.id] = y.name;
+
+    let query = supabase.from('yard_events').select('*')
+      .in('type', ['split_out', 'split_in', 'split_local', 'move_out', 'transfer_out', 'transfer_in'])
+      .order('created_at', { ascending: false }).limit(100000);
+    if (fromDate) query = query.gte('created_at', fromDate);
+    if (toDate) query = query.lte('created_at', toDate + 'T23:59:59');
+    const { data: events } = await query;
+
+    if (!events || events.length === 0) return { success: false, count: 0, offline };
+
+    const headers = ['Date', 'Type', 'Yard', 'Count', 'Related Yard', 'Notes'];
+    const rows = events.map((e) => [
+      formatDate(e.created_at),
+      e.type.replace(/_/g, ' '),
+      yardMap[e.yard_id] || 'Unknown',
+      e.count ?? '',
+      e.related_yard_id ? (yardMap[e.related_yard_id] || 'Unknown') : '',
+      e.notes || '',
+    ]);
+
+    const csv = arrayToCsv(headers, rows);
+    downloadCsv(csv, buildFilename('hivelog-splits-report', fromDate, toDate));
+    return { success: true, count: events.length, offline };
+  } catch {
+    return { success: false, count: 0, offline: true };
+  }
+}
+
+/**
+ * Export Full Activity Report — all event types with county/state.
+ */
+export async function exportFullActivity(fromDate, toDate) {
+  let offline = false;
+
+  try {
+    const { data: yards } = await supabase.from('yards').select('id, name, county, state').limit(10000);
+    const yardMap = {};
+    const yardCounty = {};
+    const yardState = {};
+    for (const y of (yards || [])) {
+      yardMap[y.id] = y.name;
+      yardCounty[y.id] = y.county || '';
+      yardState[y.id] = y.state || '';
+    }
+
+    const { data: colonies } = await supabase.from('colonies').select('id, yard_id, label').limit(100000);
+    const colonyMap = {};
+    const colonyYardMap = {};
+    for (const c of (colonies || [])) {
+      colonyMap[c.id] = c.label;
+      colonyYardMap[c.id] = c.yard_id;
+    }
+
+    // Colony-level events
+    let query1 = supabase.from('events').select('*').order('created_at', { ascending: false }).limit(100000);
+    if (fromDate) query1 = query1.gte('created_at', fromDate);
+    if (toDate) query1 = query1.lte('created_at', toDate + 'T23:59:59');
+    const { data: colonyEvents } = await query1;
+
+    // Yard-level events
+    let query2 = supabase.from('yard_events').select('*').order('created_at', { ascending: false }).limit(100000);
+    if (fromDate) query2 = query2.gte('created_at', fromDate);
+    if (toDate) query2 = query2.lte('created_at', toDate + 'T23:59:59');
+    const { data: yardEvents } = await query2;
+
+    const headers = ['Date', 'Level', 'Yard', 'County', 'State', 'Colony', 'Event Type', 'Count', 'Related Yard', 'Notes'];
+    const rows = [];
+
+    for (const e of (colonyEvents || [])) {
+      const yardId = colonyYardMap[e.colony_id];
+      rows.push([
+        formatDate(e.created_at),
+        'Colony',
+        yardMap[yardId] || 'Unknown',
+        yardCounty[yardId] || '',
+        yardState[yardId] || '',
+        colonyMap[e.colony_id] || 'Unknown',
+        e.type,
+        '',
+        '',
+        e.notes || '',
+      ]);
+    }
+
+    for (const e of (yardEvents || [])) {
+      rows.push([
+        formatDate(e.created_at),
+        'Yard',
+        yardMap[e.yard_id] || 'Unknown',
+        yardCounty[e.yard_id] || '',
+        yardState[e.yard_id] || '',
+        '',
+        e.type,
+        e.count ?? '',
+        e.related_yard_id ? (yardMap[e.related_yard_id] || 'Unknown') : '',
+        e.notes || '',
+      ]);
+    }
+
+    if (rows.length === 0) return { success: false, count: 0, offline };
+
+    rows.sort((a, b) => b[0].localeCompare(a[0]));
+
+    const csv = arrayToCsv(headers, rows);
+    downloadCsv(csv, buildFilename('hivelog-full-activity', fromDate, toDate));
+    return { success: true, count: rows.length, offline };
+  } catch {
+    return { success: false, count: 0, offline: true };
+  }
+}
+
+/**
+ * Share a CSV file via Web Share API (or fall back to download).
+ */
+export async function shareCsv(csvString, filename) {
+  if (navigator.share && navigator.canShare) {
+    const file = new File([csvString], filename, { type: 'text/csv' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: filename });
+        return true;
+      } catch {
+        // User cancelled or share failed — fall back to download
+      }
+    }
+  }
+  downloadCsv(csvString, filename);
+  return false;
+}
