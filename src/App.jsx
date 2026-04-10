@@ -57,7 +57,7 @@ function AppRoutes({ user, signOut, handleToast, toast, setToast, consumeSignInR
                   />
                 } />
                 <Route path="/consultant/client/:beekeeperId" element={
-                  <ConsultantClientView user={user} />
+                  <ConsultantClientView user={user} consultantId={consultantId} />
                 } />
               </>
             )}
