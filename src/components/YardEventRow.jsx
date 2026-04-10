@@ -23,9 +23,9 @@ function getDescription(event) {
 
   switch (type) {
     case 'split_out':
-      return `${count || '?'} hives → ${yardName || 'another yard'}`;
+      return `Split ${count || '?'} → ${yardName || 'another yard'}`;
     case 'split_in':
-      return `${count || '?'} hives ← ${yardName || 'another yard'}`;
+      return `Received ${count || '?'} splits ← ${yardName || 'another yard'}`;
     case 'transfer_out':
       return `${count || '?'} hives → ${yardName || 'another yard'}`;
     case 'transfer_in':

@@ -138,10 +138,9 @@ export default function LogYardEvent({ user, onToast }) {
     let newSourceCount = yard?.hive_count || 0;
 
     if (selectedType === 'split_out') {
-      // Splits: source loses hives, destination gains them
-      sourceCountDelta = -countNum;
+      // Splits: source keeps its bees, destination gains new colonies
+      sourceCountDelta = 0;
       destCountDelta = countNum;
-      newSourceCount += sourceCountDelta;
     } else if (selectedType === 'loss') {
       sourceCountDelta = -countNum;
       newSourceCount += sourceCountDelta;
@@ -344,19 +343,30 @@ export default function LogYardEvent({ user, onToast }) {
               )}
               {/* Preview of new count */}
               {countNum > 0 && !isAdjustment && yard && (needsCount) && (
-                <p style={{
-                  color: 'var(--color-text-secondary)',
-                  fontSize: 'var(--font-body)',
-                  marginTop: 'var(--space-sm)',
-                }}>
-                  {yard.hive_count || 0} → {Math.max(0,
-                    selectedType === 'loss'
-                      ? (yard.hive_count || 0) - countNum
-                      : selectedType === 'addition'
-                        ? (yard.hive_count || 0) + countNum
-                        : (yard.hive_count || 0) - countNum
-                  )} hives
-                </p>
+                selectedType === 'split_out' ? (
+                  <div style={{ marginTop: 'var(--space-sm)' }}>
+                    <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-body)' }}>
+                      {yard.name}: stays at {yard.hive_count || 0} hives
+                    </p>
+                    {destYard && (
+                      <p style={{ color: 'var(--color-status-green, #2e7d32)', fontSize: 'var(--font-body)', fontWeight: 600 }}>
+                        {destYard.name}: {destYard.hive_count || 0} → {(destYard.hive_count || 0) + countNum} hives
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{
+                    color: 'var(--color-text-secondary)',
+                    fontSize: 'var(--font-body)',
+                    marginTop: 'var(--space-sm)',
+                  }}>
+                    {yard.hive_count || 0} → {Math.max(0,
+                      selectedType === 'loss'
+                        ? (yard.hive_count || 0) - countNum
+                        : (yard.hive_count || 0) + countNum
+                    )} hives
+                  </p>
+                )
               )}
             </div>
           )}

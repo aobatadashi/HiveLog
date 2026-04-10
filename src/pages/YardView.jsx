@@ -377,7 +377,7 @@ export default function YardView({ user }) {
     // Calculate count reversal
     let countDelta = 0;
     const c = event.count || 0;
-    if (event.type === 'split_out' || event.type === 'transfer_out' || event.type === 'loss') {
+    if (event.type === 'transfer_out' || event.type === 'loss') {
       countDelta = c; // add back
     } else if (event.type === 'split_in' || event.type === 'transfer_in' || event.type === 'addition') {
       countDelta = -c; // remove
