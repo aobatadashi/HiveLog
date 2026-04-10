@@ -411,18 +411,27 @@ export default function YardView({ user }) {
       }
 
       // Also reverse the paired yard's count
-      if (event.pair_id && event.related_yard_id && countDelta !== 0) {
-        const pairedDelta = -countDelta;
-        const { data: relatedYard } = await supabase
-          .from('yards')
-          .select('hive_count')
-          .eq('id', event.related_yard_id)
-          .single();
-        if (relatedYard) {
-          await supabase
+      if (event.pair_id && event.related_yard_id) {
+        // For split_out: source didn't change (countDelta=0) but destination gained hives
+        // For move_out/transfer_out: source added back, destination needs to subtract
+        let pairedDelta = 0;
+        if (event.type === 'split_out') {
+          pairedDelta = -(event.count || 0); // destination gained, so subtract
+        } else if (countDelta !== 0) {
+          pairedDelta = -countDelta;
+        }
+        if (pairedDelta !== 0) {
+          const { data: relatedYard } = await supabase
             .from('yards')
-            .update({ hive_count: Math.max(0, (relatedYard.hive_count || 0) + pairedDelta) })
-            .eq('id', event.related_yard_id);
+            .select('hive_count')
+            .eq('id', event.related_yard_id)
+            .single();
+          if (relatedYard) {
+            await supabase
+              .from('yards')
+              .update({ hive_count: Math.max(0, (relatedYard.hive_count || 0) + pairedDelta) })
+              .eq('id', event.related_yard_id);
+          }
         }
       }
     } catch {
