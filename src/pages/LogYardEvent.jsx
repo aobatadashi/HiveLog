@@ -15,7 +15,7 @@ const YARD_EVENT_TYPES = [
   { value: 'treatment', label: 'Treatment', emoji: '💊' },
   { value: 'inspection', label: 'Inspection', emoji: '🔍' },
   { value: 'addition', label: 'Add Hives', emoji: '📦', needsCount: true },
-  { value: 'mite', label: 'Mite Damage', emoji: '🐛', needsOptionalCount: true },
+  { value: 'mite', label: 'Mite Check', emoji: '🐛', needsOptionalCount: true },
   { value: 'swarm', label: 'Swarm', emoji: '🐝', needsOptionalCount: true },
   { value: 'queenless', label: 'Queenless', emoji: '❌', needsOptionalCount: true },
   { value: 'harvest', label: 'Harvest', emoji: '🫙' },

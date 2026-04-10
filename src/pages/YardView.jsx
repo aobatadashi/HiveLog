@@ -731,7 +731,7 @@ export default function YardView({ user }) {
               style={{ width: '100%', marginTop: 'var(--space-sm)', height: '56px', fontSize: 'var(--font-body)' }}
               onClick={() => setSelectMode(true)}
             >
-              Select Hives to Move
+              Select Colonies to Move
             </button>
           ) : (
             <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
@@ -889,8 +889,8 @@ export default function YardView({ user }) {
         <div className="loading"><div className="spinner" /></div>
       ) : colonies.length === 0 && !(yard?.hive_count > 0) ? (
         <div className="empty-state">
-          <p>No colonies yet</p>
-          <p>Tap + to add individual hives, or use Log Yard Event for bulk tracking</p>
+          <p>No individual colonies tracked</p>
+          <p>Tap + to add colonies, or use Log Yard Event for bulk tracking</p>
         </div>
       ) : filteredColonies.length === 0 && colonies.length > 0 ? (
         <div className="empty-state">
@@ -1061,12 +1061,12 @@ export default function YardView({ user }) {
             ) : (
               <form onSubmit={handleAddColony}>
                 <div className="form-group">
-                  <label>Hive Label</label>
+                  <label>Colony Label</label>
                   <input
                     type="text"
                     value={newLabel}
                     onChange={(e) => { setNewLabel(e.target.value); setError(''); }}
-                    placeholder='e.g., Hive 12'
+                    placeholder='e.g., H-001, Colony 12'
                     autoFocus
                   />
                 </div>
@@ -1088,7 +1088,7 @@ export default function YardView({ user }) {
       {showBatchTransfer && (
         <div className="modal-overlay" onClick={() => setShowBatchTransfer(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Move {selected.size} {selected.size === 1 ? 'Hive' : 'Hives'}</h2>
+            <h2>Move {selected.size} {selected.size === 1 ? 'Colony' : 'Colonies'}</h2>
             <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)' }}>
               Select destination yard
             </p>

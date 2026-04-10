@@ -14,7 +14,7 @@ const TYPE_CONFIG = {
   treatment:    { label: 'Treatment', badge: 'treatment' },
   feed:         { label: 'Feed', badge: 'feed' },
   harvest:      { label: 'Harvest', badge: 'harvest' },
-  mite:         { label: 'Mite Damage', badge: 'mite' },
+  mite:         { label: 'Mite Check', badge: 'mite' },
   swarm:        { label: 'Swarm', badge: 'swarm' },
   queenless:    { label: 'Queenless', badge: 'queenless' },
 };
